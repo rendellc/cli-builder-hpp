@@ -38,11 +38,6 @@ TEST_CASE("basic usage", "[cli]") {
     REQUIRE(!wasSetByCallback);
   }
 
-  SECTION("prefix match but input is too long") {
-    REQUIRE(!cmd.tryRun("helloo"));
-    REQUIRE(!wasSetByCallback);
-  }
-
   SECTION("multipart command", "[cli]") {
     REQUIRE(setVoltageCmd.tryRun("set voltage 42"));
     REQUIRE(voltage == 42);
@@ -53,15 +48,27 @@ TEST_CASE("basic usage", "[cli]") {
   }
 }
 
-// TEST_CASE("Tests for bugs that", "[cli usage]") {
-//   using cli::Arguments;
-//   using cli::Cmd;
-//
-//   bool wasSetByCallback = false;
-//   const auto cmd = Cmd({"hello"}, [&wasSetByCallback](Arguments args) {
-//     wasSetByCallback = true;
-//   });
-//
-//   REQUIRE(cmd.tryRun("hello"));
-//   REQUIRE(wasSetByCallback);
-// };
+TEST_CASE("tests for former bugs", "[cli]") {
+  using cli::Arguments;
+  using cli::Cmd;
+
+  bool wasSetByCallback = false;
+  const auto cmd = Cmd({"hello"}, [&wasSetByCallback](Arguments args) {
+    wasSetByCallback = true;
+  });
+  int voltage = 0;
+  const auto setVoltageCmd = Cmd({"set", "voltage", "?i"}, [&](Arguments args) {
+    wasSetByCallback = true;
+    voltage = args[2].getInt();
+  });
+
+  SECTION("prefix match but input is too long") {
+    REQUIRE(!cmd.tryRun("helloo"));
+    REQUIRE(!wasSetByCallback);
+  }
+
+  SECTION("invalid int parsing doesn't fail") {
+    REQUIRE(!setVoltageCmd.tryRun("set voltage not_int"));
+    REQUIRE(!wasSetByCallback);
+  }
+};
