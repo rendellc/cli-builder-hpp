@@ -1,6 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
-#include "cli/cli.hpp"
+#include <cli/cli.hpp>
 
 TEST_CASE("basic usage", "[cli]") {
   using cli::Arguments;
@@ -10,6 +10,11 @@ TEST_CASE("basic usage", "[cli]") {
   const auto cmd = Cmd({"hello"}, [&wasSetByCallback](Arguments args) {
     wasSetByCallback = true;
   });
+
+  int voltage = 0;
+  const auto setVoltageCmd =
+      Cmd({"set", "voltage", "?i"},
+          [&voltage](Arguments args) { voltage = args[2].getInt(); });
 
   SECTION("callback is called and variable is modified") {
     REQUIRE(cmd.tryRun("hello"));
@@ -36,6 +41,15 @@ TEST_CASE("basic usage", "[cli]") {
   SECTION("prefix match but input is too long") {
     REQUIRE(!cmd.tryRun("helloo"));
     REQUIRE(!wasSetByCallback);
+  }
+
+  SECTION("multipart command", "[cli]") {
+    REQUIRE(setVoltageCmd.tryRun("set voltage 42"));
+    REQUIRE(voltage == 42);
+  }
+
+  SECTION("multipart command non match", "[cli]") {
+    REQUIRE(!setVoltageCmd.tryRun("set voltage not_int"));
   }
 }
 

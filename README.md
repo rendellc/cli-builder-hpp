@@ -4,15 +4,21 @@ Goals:
 - Simple API to define commands
 - Easy integration into any existing project
 - No dynamic allocations to enable running on microcontrollers
-- Prefer simplicity over features (If more features are required, then library is easy enough to be modified by users)
+- Prefer simplicity over features (If more features are required, then library is small and simple enough to be modified by users)
 
 
-
-Todo:
+Todo
+- add root CLI class to hold all commands and serve as main access point
+    - maxCommands
+    - addCommand
+    - tryRun
 - clean up and document
+    - Be consistent about Cmd or Command
+    - initialize token from c_str instead of initializer_list
 - add more examples
 - tests
 - helptext generator
+- add license
 
 
 
