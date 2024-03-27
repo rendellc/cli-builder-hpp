@@ -9,7 +9,7 @@
   printf(format, ##__VA_ARGS__)
 */
 #define CLI_MAX_CMD_PARTS 8
-#include "cli.hpp"
+#include <cli/cli.hpp>
 
 using std::cout;
 using std::endl;
