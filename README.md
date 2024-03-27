@@ -9,6 +9,7 @@ Goals:
 
 
 Todo:
+- clean up and document
 - add more examples
 - tests
 - helptext generator
