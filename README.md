@@ -15,7 +15,10 @@ Todo
 - clean up and document
     - Be consistent about Cmd or Command
     - initialize token from c_str instead of initializer_list
+    - reduce size of public interface for classes
+    - doxygen comments
 - add more examples
+- improve consistency between SchemaType and Type. Can they be the same?
 - tests
 - helptext generator
 - add license

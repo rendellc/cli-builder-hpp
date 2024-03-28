@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cctype>
 #include <cstdint>
 #include <cstring>
 #include <functional>
@@ -37,15 +38,50 @@
 
 #ifndef CLI_SIZE_T_TYPE
 #define CLI_SIZE_T_TYPE uint8_t
-// #define CLI_SIZE_T_TYPE std::size_t
 #endif
 
 namespace cli {
 
-namespace {
 using SizeT = CLI_SIZE_T_TYPE;
 
-};
+bool integerParser(const char *input, int &value) {
+  if (input == nullptr) {
+    return false;
+  }
+
+  const char &first = *input;
+  const bool validFirst =
+      first == '+' || first == '-' || ('0' <= first && first <= '9');
+  if (!validFirst) {
+    return false;
+  }
+
+  const bool isNegative = first == '-';
+  const bool skipFirst = first == '-' || first == '+';
+  if (skipFirst) {
+    input++;
+  }
+
+  value = 0;
+  while (*input != 0 && !std::isspace(*input) && '0' <= *input &&
+         *input <= '9') {
+    const int digit = static_cast<int>(*input - '0');
+    value = digit + 10 * value;
+
+    input++;
+  }
+
+  const bool hadValidStopCharacter = std::isspace(*input) || *input == 0;
+  if (!hadValidStopCharacter) {
+    return false;
+  }
+
+  if (isNegative) {
+    value = -value;
+  }
+
+  return true;
+}
 
 class Argument {
   union Result {
@@ -57,11 +93,12 @@ class Argument {
 public:
   enum class Type {
     none,
-    word,    ///< ?s
-    integer, ///< ?i
-    decimal, ///< %d
+    word, ///< ?s: a single word
+    // trail,   ///< ?s*: the rest of the input as a string
+    integer, ///< ?i: integer 123, +4, -1, 0
+    decimal, ///< %d: decimal (cast to float): 0.1, 10.42, -123.456
   };
-  static Argument fail() { return Argument{}; }
+  static Argument none() { return Argument{}; }
   static Argument integer(int value) {
     Argument a;
     a.m_type = Type::integer;
@@ -83,16 +120,24 @@ public:
   }
 
   Type getType() const { return m_type; }
-  const char *getText() const { return m_value.text; }
+  const char *getWord() const {
+    CLI_ASSERT(getType() == Type::word,
+               "trying to get non-word argument as word\n");
+
+    return m_value.text;
+  }
   int getInt() const {
-    if (getType() != Type::integer) {
-      CLI_WARN("trying to get non-int parameter as integer\n");
-      return 0;
-    }
+    CLI_ASSERT(getType() == Type::integer,
+               "trying to get non-int argument as integer\n");
 
     return m_value.integer;
   }
-  float getFloat() const { return m_value.decimal; }
+  float getFloat() const {
+    CLI_ASSERT(getType() == Type::decimal,
+               "trying to get non-float argument as float\n");
+
+    return m_value.decimal;
+  }
 
 private:
   Type m_type = Type::none;
@@ -138,15 +183,19 @@ public:
     case SchemaType::argString:
       return Argument::text(input);
       break;
-    case SchemaType::argInteger:
-      return Argument::integer(std::atoi(input));
+    case SchemaType::argInteger: {
+      int value;
+      if (integerParser(input, value)) {
+        return Argument::integer(value);
+      }
       break;
+    }
     case SchemaType::argDecimal:
       return Argument::decimal(static_cast<float>(std::atof(input)));
       break;
     }
 
-    return Argument::fail();
+    return Argument::none();
   }
 
 private:
