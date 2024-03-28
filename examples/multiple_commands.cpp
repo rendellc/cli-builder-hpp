@@ -28,7 +28,7 @@ void testParser(cli::Arguments args) {
   const char *input = args[1].getWord();
   cout << "testing integer parser on " << input << endl;
   int value = 12837912;
-  const bool success = cli::integerParser(input, value);
+  const bool success = cli::parsers::integerParser(input, value);
   cout << "success: " << success << endl;
   cout << "value: " << value << endl;
 }
@@ -38,24 +38,24 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  const cli::Cmd helloCmd({"hello"}, [](cli::Arguments args) { hello(); });
-  const cli::Cmd echoCmd({"echo", "?s"},
-                         [](cli::Arguments args) { echo(args[1].getWord()); });
-  const cli::Cmd limitCmd({"pm", "lim", "vin", "?i", "?i"},
-                          [](cli::Arguments args) {
-                            setLimits(args[3].getInt(), args[4].getInt());
-                          });
-  const cli::Cmd ratioCmd({"ratio", "set", "?f"}, [](cli::Arguments args) {
+  const cli::Command helloCmd({"hello"}, [](cli::Arguments args) { hello(); });
+  const cli::Command echoCmd(
+      {"echo", "?s"}, [](cli::Arguments args) { echo(args[1].getWord()); });
+  const cli::Command limitCmd({"pm", "lim", "vin", "?i", "?i"},
+                              [](cli::Arguments args) {
+                                setLimits(args[3].getInt(), args[4].getInt());
+                              });
+  const cli::Command ratioCmd({"ratio", "set", "?f"}, [](cli::Arguments args) {
     setRatio(args[2].getFloat());
   });
   int voltage = 0;
-  const cli::Cmd setVoltageCmd(
+  const cli::Command setVoltageCmd(
       {"set", "voltage", "?i"}, [&voltage](cli::Arguments args) {
         cout << "set voltage called with arg 2 (int): " << args[2].getInt()
              << endl;
         voltage = args[2].getInt();
       });
-  const cli::Cmd parseIntCmd({"parseint", "?s"}, testParser);
+  const cli::Command parseIntCmd({"parseint", "?s"}, testParser);
 
   const char *const input = argv[1];
   if (helloCmd.tryRun(input)) {

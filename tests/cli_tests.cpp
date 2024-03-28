@@ -4,17 +4,17 @@
 
 TEST_CASE("basic usage", "[cli]") {
   using cli::Arguments;
-  using cli::Cmd;
+  using cli::Command;
 
   bool wasSetByCallback = false;
-  const auto cmd = Cmd({"hello"}, [&wasSetByCallback](Arguments args) {
+  const auto cmd = Command({"hello"}, [&wasSetByCallback](Arguments args) {
     wasSetByCallback = true;
   });
 
   int voltage = 0;
-  const auto setVoltageCmd =
-      Cmd({"set", "voltage", "?i"},
-          [&voltage](Arguments args) { voltage = args[2].getInt(); });
+  const auto setVoltageCommand =
+      Command({"set", "voltage", "?i"},
+              [&voltage](Arguments args) { voltage = args[2].getInt(); });
 
   SECTION("callback is called and variable is modified") {
     REQUIRE(cmd.tryRun("hello"));
@@ -39,26 +39,26 @@ TEST_CASE("basic usage", "[cli]") {
   }
 
   SECTION("multipart command", "[cli]") {
-    REQUIRE(setVoltageCmd.tryRun("set voltage 42"));
+    REQUIRE(setVoltageCommand.tryRun("set voltage 42"));
     REQUIRE(voltage == 42);
   }
 
   SECTION("multipart command non match", "[cli]") {
-    REQUIRE(!setVoltageCmd.tryRun("set voltage not_int"));
+    REQUIRE(!setVoltageCommand.tryRun("set voltage not_int"));
   }
 }
 
 TEST_CASE("tests for former bugs", "[cli]") {
   using cli::Arguments;
-  using cli::Cmd;
+  using cli::Command;
 
   bool wasSetByCallback = false;
-  const auto cmd = Cmd({"hello"}, [&wasSetByCallback](Arguments args) {
+  const auto cmd = Command({"hello"}, [&wasSetByCallback](Arguments args) {
     wasSetByCallback = true;
   });
-  const auto setVoltageCmd = Cmd({"set", "voltage", "?i"}, [&](Arguments args) {
-    wasSetByCallback = true;
-  });
+  const auto setVoltageCommand =
+      Command({"set", "voltage", "?i"},
+              [&](Arguments args) { wasSetByCallback = true; });
 
   SECTION("prefix match but input is too long") {
     REQUIRE(!cmd.tryRun("helloo"));
@@ -66,39 +66,40 @@ TEST_CASE("tests for former bugs", "[cli]") {
   }
 
   SECTION("invalid int parsing doesn't fail") {
-    REQUIRE(!setVoltageCmd.tryRun("set voltage not_int"));
+    REQUIRE(!setVoltageCommand.tryRun("set voltage not_int"));
     REQUIRE(!wasSetByCallback);
   }
 };
 
 TEST_CASE("integer parser", "[cli]") {
+  using cli::parsers::integerParser;
   int value = 1231241241; // value not expected by any tests
-                          //
+
   SECTION("normal usage") {
-    REQUIRE(cli::integerParser("0", value));
+    REQUIRE(integerParser("0", value));
     REQUIRE(value == 0);
 
-    REQUIRE(cli::integerParser("1", value));
+    REQUIRE(integerParser("1", value));
     REQUIRE(value == 1);
-    REQUIRE(cli::integerParser("+63", value));
+    REQUIRE(integerParser("+63", value));
     REQUIRE(value == 63);
 
-    REQUIRE(cli::integerParser("-2", value));
+    REQUIRE(integerParser("-2", value));
     REQUIRE(value == -2);
 
-    REQUIRE(cli::integerParser("-0", value));
+    REQUIRE(integerParser("-0", value));
     REQUIRE(value == 0);
 
-    REQUIRE(cli::integerParser("-1043", value));
+    REQUIRE(integerParser("-1043", value));
     REQUIRE(value == -1043);
   }
 
   SECTION("invalid inputs should fail") {
-    REQUIRE(!cli::integerParser(nullptr, value));
-    REQUIRE(!cli::integerParser("", value));
-    REQUIRE(!cli::integerParser(" ", value));
-    REQUIRE(!cli::integerParser("1+2", value));
-    REQUIRE(!cli::integerParser("text", value));
-    REQUIRE(!cli::integerParser("10.0", value));
+    REQUIRE_THROWS(integerParser(nullptr, value));
+    REQUIRE(!integerParser("", value));
+    REQUIRE(!integerParser(" ", value));
+    REQUIRE(!integerParser("1+2", value));
+    REQUIRE(!integerParser("text", value));
+    REQUIRE(!integerParser("10.0", value));
   }
 };

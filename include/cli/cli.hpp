@@ -28,8 +28,8 @@
   }
 #endif
 
-#ifndef CLI_MAX_CMD_PARTS
-#define CLI_MAX_CMD_PARTS 4
+#ifndef CLI_CMD_TOKENS_MAX
+#define CLI_CMD_TOKENS_MAX 4
 #endif
 
 #ifndef CLI_ARG_MAX_TEXT_LEN
@@ -44,7 +44,15 @@ namespace cli {
 
 using SizeT = CLI_SIZE_T_TYPE;
 
+namespace constants {
+constexpr const char *word = "?s";
+constexpr const char *integer = "?i";
+constexpr const char *decimal = "?d";
+} // namespace constants
+
+namespace parsers {
 bool integerParser(const char *input, int &value) {
+  CLI_ASSERT(input != nullptr, "integerParser got nullptr input");
   if (input == nullptr) {
     return false;
   }
@@ -83,6 +91,24 @@ bool integerParser(const char *input, int &value) {
   return true;
 }
 
+bool decimalParser(const char *input, float &value) {
+  CLI_ASSERT(input != nullptr, "decimalParser got nullptr input");
+  value = static_cast<float>(std::atof(input));
+  return true;
+}
+
+// bool wordParser(const char *input, char *value, SizeT bufSize) {
+//
+//     const SizeT size = static_cast<SizeT>(strcspn(value, " "));
+//     Argument a;
+//     a.m_type = Type::word;
+//     strncpy(a.m_value.text, value, size);
+//   //
+//   //
+//   return false;
+// }
+} // namespace parsers
+
 class Argument {
   union Result {
     char text[CLI_ARG_MAX_TEXT_LEN] = {0};
@@ -96,7 +122,7 @@ public:
     word, ///< ?s: a single word
     // trail,   ///< ?s*: the rest of the input as a string
     integer, ///< ?i: integer 123, +4, -1, 0
-    decimal, ///< %d: decimal (cast to float): 0.1, 10.42, -123.456
+    decimal, ///< ?f: decimal (cast to float): 0.1, 10.42, -123.456
   };
   static Argument none() { return Argument{}; }
   static Argument integer(int value) {
@@ -144,7 +170,7 @@ private:
   Result m_value = {};
 };
 
-using Arguments = std::array<Argument, CLI_MAX_CMD_PARTS>;
+using Arguments = std::array<Argument, CLI_CMD_TOKENS_MAX>;
 using Callback = std::function<void(Arguments)>;
 
 class Token {
@@ -185,14 +211,18 @@ public:
       break;
     case SchemaType::argInteger: {
       int value;
-      if (integerParser(input, value)) {
+      if (parsers::integerParser(input, value)) {
         return Argument::integer(value);
       }
       break;
     }
-    case SchemaType::argDecimal:
-      return Argument::decimal(static_cast<float>(std::atof(input)));
+    case SchemaType::argDecimal: {
+      float value;
+      if (parsers::decimalParser(input, value)) {
+        return Argument::decimal(value);
+      }
       break;
+    }
     }
 
     return Argument::none();
@@ -203,13 +233,13 @@ private:
   SizeT m_partLen = 0;
 
   static SchemaType parseType(const char *str) {
-    if (std::strcmp("?s", str) == 0) {
+    if (std::strcmp(constants::word, str) == 0) {
       return SchemaType::argString;
     }
-    if (std::strcmp("?i", str) == 0) {
+    if (std::strcmp(constants::integer, str) == 0) {
       return SchemaType::argInteger;
     }
-    if (std::strcmp("?f", str) == 0) {
+    if (std::strcmp(constants::decimal, str) == 0) {
       return SchemaType::argDecimal;
     }
 
@@ -226,7 +256,7 @@ private:
 
   bool cmp(const char *str) const {
     CLI_ASSERT(m_str != nullptr, "token is initialized with nullptr");
-    CLI_ASSERT(len(), "token is an empty string");
+    CLI_ASSERT(len() > 0, "token is an empty string");
     CLI_ASSERT(str != nullptr, "cmp function got nullptr input");
     CLI_DEBUG("comparing input '%s' with token '%s'\n", str, m_str);
 
@@ -254,13 +284,13 @@ private:
   }
 };
 
-class Cmd {
-  std::array<Token, CLI_MAX_CMD_PARTS> m_parts;
+class Command {
+  std::array<Token, CLI_CMD_TOKENS_MAX> m_parts;
   const SizeT m_numParts = 0;
   Callback m_callback;
 
 public:
-  Cmd(std::initializer_list<Token> parts, Callback callback)
+  Command(std::initializer_list<Token> parts, Callback callback)
       : m_numParts(parts.size()), m_callback(callback) {
     SizeT i = 0;
     for (const auto &part : parts) {
@@ -269,15 +299,15 @@ public:
       i++;
       if (i >= m_numParts) {
         CLI_WARN("Cmd has more parts than array can hold. Increase "
-                 "CLI_MAX_CMD_PARTS\n");
+                 "CLI_CMD_TOKENS_MAX\n");
         break;
       }
     }
   }
 
   ///< Try to run command, return true if successful
-  bool tryRun(const char *input) const {
-    std::array<Argument, CLI_MAX_CMD_PARTS> arguments; ///< Parsed arguments
+
+  bool parse(const char *input, Arguments &args) const {
     SizeT args_found = 0;
 
     for (const auto &part : m_parts) {
@@ -295,17 +325,17 @@ public:
       case Argument::Type::integer:
         CLI_DEBUG("arg %lu: parsed '%s' as integer with '%s'\n", args_found,
                   input, part.c_str());
-        arguments[args_found] = result;
+        args[args_found] = result;
         args_found++;
         break;
       case Argument::Type::decimal:
         CLI_DEBUG("arg %lu: parsed '%s' as decimal with '%s'\n", args_found,
                   input, part.c_str());
-        arguments[args_found] = result;
+        args[args_found] = result;
         args_found++;
         break;
       case Argument::Type::word:
-        arguments[args_found] = result;
+        args[args_found] = result;
         CLI_DEBUG("arg %lu: parsed '%s' as text with '%s'\n", args_found, input,
                   part.c_str());
         args_found++;
@@ -321,7 +351,15 @@ public:
         input++;
       }
     }
+    return true;
+  }
 
+  bool tryRun(const char *input) const {
+    std::array<Argument, CLI_CMD_TOKENS_MAX> arguments; ///< Parsed arguments
+
+    if (!parse(input, arguments)) {
+      return false;
+    }
     m_callback(arguments);
     return true;
   }

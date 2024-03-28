@@ -23,13 +23,33 @@ Todo
 - helptext generator
 - add license
 
+## Structure
 
+TODO: Write these as doc strings in the code
+
+### CLI (not implemented)
+
+### Command
+
+### Arguments
+
+### parsers::
+
+### types::
 
 ## Usage
 
 Copy cli.hpp into your project and include it. See examples and tests for examples of
 how to use it.
+```
+wget https://raw.githubusercontent.com/rendellc/single_file_cli_hpp/main/include/cli/cli.hpp
+```
 
+
+```
+
+
+```
 
 ## Building examples and running tests
 
