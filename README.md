@@ -11,11 +11,9 @@ Goals:
 Todo
 - clean up and document
     - reduce size of public interface for classes
-    - doxygen comments
 - add more examples
-- tests
+- flag to allow including with no implementations (only definitions)
 - helptext generator
-- add license
 - no throwing. Always return errors, except with asserts
 
 ## Usage
@@ -26,10 +24,18 @@ how to use it.
 wget https://raw.githubusercontent.com/rendellc/single_file_cli_hpp/main/include/cli/cli.hpp
 ```
 
+```{cpp}
+// defining the CLI by patterns and callbacks
+cli::CLI cli;
+cli.addCommand("hello", [](cli::Arguments args) { hello(); });
+cli.addCommand("echo ?i", [](cli::Arguments args) { 
+    // read integer argument
+    std::cout << "echo got: " << args[1].getInt() << std::endl;
+});
 
-```
-
-
+// send user inputs to the CLI
+const char* input = "input";
+cli.run(input);
 ```
 
 ## Building examples and running tests

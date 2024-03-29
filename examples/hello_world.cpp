@@ -15,7 +15,7 @@ int main(int argc, char *argv[]) {
   const char *const input = argv[1];
 
   // Create a CLI which can hold up to 4 commands
-  cli::CLI<4> cli;
+  cli::CLI cli;
   cli.addCommand("hello", [](cli::Arguments args) { hello(); });
 
   // Run CLI with input

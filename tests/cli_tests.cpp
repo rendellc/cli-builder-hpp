@@ -7,7 +7,7 @@ TEST_CASE("usage through CLI class", "[cli]") {
   using cli::Arguments;
   using cli::CLI;
 
-  CLI<4> cli;
+  CLI cli;
 
   bool wasSetByCallback = false;
   cli.addCommand("hello", [&wasSetByCallback](Arguments args) {

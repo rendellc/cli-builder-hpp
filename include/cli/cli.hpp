@@ -435,8 +435,8 @@ public:
  *
  *
  */
-template <SizeT cmdCountMax> class CLI {
-  std::array<Command, cmdCountMax> m_commands;
+class CLI {
+  std::array<Command, CLI_CMD_COUNT_MAX> m_commands;
   SizeT m_numberOfCommands = 0;
 
 public:

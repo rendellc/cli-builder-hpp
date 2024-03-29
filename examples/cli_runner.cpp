@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  cli::CLI<16> cli;
+  cli::CLI cli;
   cli.addCommand("hello", [](cli::Arguments args) { hello(); });
   cli.addCommand("echo ?s",
                  [](cli::Arguments args) { echo(args[1].getString()); });
