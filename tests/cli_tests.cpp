@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cli/cli.hpp>
+#include <limits>
 
 TEST_CASE("basic usage", "[cli]") {
   using cli::Arguments;
@@ -68,6 +69,13 @@ TEST_CASE("tests for former bugs", "[cli]") {
     REQUIRE(!setVoltageCommand.tryRun("set voltage not_int"));
     REQUIRE(!wasSetByCallback);
   }
+
+  SECTION("incomplete input shold fail") {
+    REQUIRE(!setVoltageCommand.tryRun("set voltage"));
+    REQUIRE(!wasSetByCallback);
+  }
+  // NOTE: what happens when input matches command but is longer?
+  // Ie command is prefix of input
 };
 
 TEST_CASE("integer parser", "[cli]") {
@@ -100,5 +108,47 @@ TEST_CASE("integer parser", "[cli]") {
     REQUIRE(!integerParser("1+2", value));
     REQUIRE(!integerParser("text", value));
     REQUIRE(!integerParser("10.0", value));
+  }
+};
+
+TEST_CASE("decimal parser", "[cli]") {
+  using cli::parsers::decimalParser;
+  float value = 123.4560123;
+  const auto isEqual = [](float a, float b) {
+    // return std::abs(a - b) <= 0.00001f;
+    return std::abs(a - b) <= std::numeric_limits<float>::epsilon();
+  };
+
+  SECTION("normal usage") {
+    REQUIRE(decimalParser("0", value));
+    REQUIRE(isEqual(0.0, value));
+
+    REQUIRE(decimalParser("0.0", value));
+    REQUIRE(isEqual(0.0, value));
+
+    REQUIRE(decimalParser("1", value));
+    REQUIRE(isEqual(1.0, value));
+    REQUIRE(decimalParser("+63", value));
+    REQUIRE(isEqual(63.0, value));
+
+    REQUIRE(decimalParser("-2", value));
+    REQUIRE(isEqual(-2.0, value));
+
+    REQUIRE(decimalParser("-0", value));
+    REQUIRE(isEqual(-0.0, value));
+
+    REQUIRE(decimalParser("-1043", value));
+    REQUIRE(isEqual(-1043.0, value));
+
+    REQUIRE(decimalParser("10.0", value));
+    REQUIRE(isEqual(10.0, value));
+  }
+
+  SECTION("invalid inputs should fail") {
+    REQUIRE_THROWS(decimalParser(nullptr, value));
+    REQUIRE(!decimalParser("", value));
+    REQUIRE(!decimalParser(" ", value));
+    REQUIRE(!decimalParser("1+2", value));
+    REQUIRE(!decimalParser("text", value));
   }
 };

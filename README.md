@@ -22,6 +22,7 @@ Todo
 - tests
 - helptext generator
 - add license
+- no throwing. Always return errors, except with asserts
 
 ## Structure
 

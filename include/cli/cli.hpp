@@ -56,13 +56,7 @@ constexpr const char *decimal = "?d";
 
 // TODO: merge these togheter
 enum class SchemaType { invalid, text, argWord, argInteger, argDecimal };
-enum class Type {
-  none,
-  word, ///< ?s: a single word
-  // trail,   ///< ?s*: the rest of the input as a string
-  integer, ///< ?i: integer 123, +4, -1, 0
-  decimal, ///< ?f: decimal (cast to float): 0.1, 10.42, -123.456
-};
+
 } // namespace constants
 //
 
@@ -96,7 +90,15 @@ public:
 };
 
 class Argument {
-  constants::Type m_type = constants::Type::none;
+  /// Describe the type of a parsed argument in a tagged union
+  enum class Type {
+    none,
+    word, ///< ?s: a single word
+    // trail,   ///< ?s*: the rest of the input as a string
+    integer, ///< ?i: integer 123, +4, -1, 0
+    decimal, ///< ?f: decimal (cast to float): 0.1, 10.42, -123.456
+  };
+  Type m_type = Type::none;
 
   union Result {
     char text[CLI_ARG_MAX_TEXT_LEN] = {0};
@@ -106,42 +108,43 @@ class Argument {
   Result m_value = {};
 
 public:
+  bool isValid() const { return m_type != Type::none; }
+
   static Argument none() { return Argument{}; }
   static Argument integer(int value) {
     Argument a;
-    a.m_type = constants::Type::integer;
+    a.m_type = Type::integer;
     a.m_value.integer = value;
     return a;
   }
   static Argument decimal(float value) {
     Argument a;
-    a.m_type = constants::Type::decimal;
+    a.m_type = Type::decimal;
     a.m_value.decimal = value;
     return a;
   }
   static Argument text(const char *value, SizeT len) {
     const SizeT size = static_cast<SizeT>(strcspn(value, " "));
     Argument a;
-    a.m_type = constants::Type::word;
+    a.m_type = Type::word;
     strncpy(a.m_value.text, value, size);
     return a;
   }
 
-  constants::Type getType() const { return m_type; }
   const char *getWord() const {
-    CLI_ASSERT(getType() == constants::Type::word,
+    CLI_ASSERT(m_type == Type::word,
                "trying to get non-word argument as word\n");
 
     return m_value.text;
   }
   int getInt() const {
-    CLI_ASSERT(getType() == constants::Type::integer,
+    CLI_ASSERT(m_type == Type::integer,
                "trying to get non-int argument as integer\n");
 
     return m_value.integer;
   }
   float getFloat() const {
-    CLI_ASSERT(getType() == constants::Type::decimal,
+    CLI_ASSERT(m_type == Type::decimal,
                "trying to get non-float argument as float\n");
 
     return m_value.decimal;
@@ -213,9 +216,61 @@ bool integerParser(const char *input, int &value) {
   return true;
 }
 
+// TODO: work directly on Tokens, so that we do
+// not have to check for spaces or 0 in input string
 bool decimalParser(const char *input, float &value) {
   CLI_ASSERT(input != nullptr, "decimalParser got nullptr input");
-  value = static_cast<float>(std::atof(input));
+  if (input == nullptr) {
+    return false;
+  }
+
+  const char &first = *input;
+  const bool validFirst =
+      first == '+' || first == '-' || ('0' <= first && first <= '9');
+  if (!validFirst) {
+    return false;
+  }
+
+  const bool isNegative = first == '-';
+  const bool skipFirst = first == '-' || first == '+';
+  if (skipFirst) {
+    input++;
+  }
+
+  int numberPart = 0;
+  while (*input != 0 && !std::isspace(*input) && '0' <= *input &&
+         *input <= '9') {
+    const int digit = static_cast<int>(*input - '0');
+    numberPart = digit + 10 * numberPart;
+
+    input++;
+  }
+  if (!(*input == '.' || *input == 0 || std::isspace(*input))) {
+    return false;
+  }
+
+  if (*input == '.') {
+    input++;
+  }
+
+  int decimalPart = 0;
+  SizeT decimalDivider = 1;
+  while (*input != 0 && !std::isspace(*input) && '0' <= *input &&
+         *input <= '9') {
+    const int digit = static_cast<int>(*input - '0');
+    decimalPart = digit + 10 * decimalPart;
+    decimalDivider *= 10;
+
+    input++;
+  }
+  if (*input != 0 && !std::isspace(*input)) {
+    return false;
+  }
+
+  value = numberPart + static_cast<float>(decimalPart) / decimalDivider;
+  if (isNegative) {
+    value = -value;
+  }
   return true;
 }
 
@@ -240,17 +295,6 @@ bool tokenSplitter(const char *input, SizeT &tokenStart, SizeT &tokenLen) {
 
   return true;
 }
-
-// bool wordParser(const char *input, char *value, SizeT bufSize) {
-//
-//     const SizeT size = static_cast<SizeT>(strcspn(value, " "));
-//     Argument a;
-//     a.m_type = Type::word;
-//     strncpy(a.m_value.text, value, size);
-//   //
-//   //
-//   return false;
-// }
 
 constants::SchemaType parseType(const char *str, const SizeT len) {
   if (std::strncmp(constants::word, str, len) == 0) {
@@ -340,43 +384,17 @@ public:
         return false;
       }
 
-      // NOTE: what happens when input matches command but is longer?
-      // Ie command is prefix of input
       const Token inputToken =
           Token(userInput + inputTokenStart, inputTokenLen);
       inputTokenStart += inputTokenLen;
       const Argument arg = parsers::tokenParser(commandToken, inputToken);
-
-      switch (arg.getType()) {
-      case constants::Type::none:
-        CLI_DEBUG("cant parse '%s' according to token type '%u'\n", input,
-                  token.getSchemaType());
+      args[argsFound] = arg;
+      argsFound++;
+      if (!arg.isValid()) {
         return false;
-      case constants::Type::integer:
-        CLI_DEBUG("arg %lu: parsed '%s' as integer\n", argsFound, input);
-        args[argsFound] = arg;
-        argsFound++;
-        break;
-      case constants::Type::decimal:
-        CLI_DEBUG("arg %lu: parsed '%s' as decimal\n", argsFound, input);
-        args[argsFound] = arg;
-        argsFound++;
-        break;
-      case constants::Type::word:
-        args[argsFound] = arg;
-        CLI_DEBUG("arg %lu: parsed '%s' as text\n", argsFound, input);
-        argsFound++;
-        break;
       }
-      // // move across current word
-      // while (*userInput != 0 && !std::isspace(*userInput)) {
-      //   userInput++;
-      // }
-      // // move to next word
-      // while (*userInput != 0 && std::isspace(*userInput)) {
-      //   userInput++;
-      // }
     }
+
     return true;
   }
 
