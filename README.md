@@ -18,20 +18,6 @@ Todo
 - add license
 - no throwing. Always return errors, except with asserts
 
-## Structure
-
-TODO: Write these as doc strings in the code
-
-### CLI
-
-### Command
-
-### Arguments
-
-### parsers::
-
-### types::
-
 ## Usage
 
 Copy cli.hpp into your project and include it. See examples and tests for examples of
