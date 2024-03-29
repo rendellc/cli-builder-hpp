@@ -7,13 +7,13 @@ TEST_CASE("basic usage", "[cli]") {
   using cli::Command;
 
   bool wasSetByCallback = false;
-  const auto cmd = Command({"hello"}, [&wasSetByCallback](Arguments args) {
+  const auto cmd = Command("hello", [&wasSetByCallback](Arguments args) {
     wasSetByCallback = true;
   });
 
   int voltage = 0;
   const auto setVoltageCommand =
-      Command({"set", "voltage", "?i"},
+      Command("set voltage ?i",
               [&voltage](Arguments args) { voltage = args[2].getInt(); });
 
   SECTION("callback is called and variable is modified") {
@@ -53,12 +53,11 @@ TEST_CASE("tests for former bugs", "[cli]") {
   using cli::Command;
 
   bool wasSetByCallback = false;
-  const auto cmd = Command({"hello"}, [&wasSetByCallback](Arguments args) {
+  const auto cmd = Command("hello", [&wasSetByCallback](Arguments args) {
     wasSetByCallback = true;
   });
-  const auto setVoltageCommand =
-      Command({"set", "voltage", "?i"},
-              [&](Arguments args) { wasSetByCallback = true; });
+  const auto setVoltageCommand = Command(
+      "set voltage ?i", [&](Arguments args) { wasSetByCallback = true; });
 
   SECTION("prefix match but input is too long") {
     REQUIRE(!cmd.tryRun("helloo"));

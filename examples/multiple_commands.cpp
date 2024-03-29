@@ -1,13 +1,11 @@
 #include <iostream>
 
-/*
-#define CLI_DEBUG(format, ...)                                                 \
-  printf("debug: ");                                                           \
-  printf(format, ##__VA_ARGS__)
-#define CLI_WARN(format, ...)                                                  \
-  printf("warn: ");                                                            \
-  printf(format, ##__VA_ARGS__)
-*/
+// #define CLI_DEBUG(format, ...)                                                 \
+//   printf("debug: ");                                                           \
+//   printf(format, ##__VA_ARGS__)
+// #define CLI_WARN(format, ...)                                                  \
+//   printf("warn: ");                                                            \
+//   printf(format, ##__VA_ARGS__)
 #define CLI_MAX_CMD_PARTS 8
 #include <cli/cli.hpp>
 
@@ -38,24 +36,22 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  const cli::Command helloCmd({"hello"}, [](cli::Arguments args) { hello(); });
+  const cli::Command helloCmd("hello", [](cli::Arguments args) { hello(); });
   const cli::Command echoCmd(
-      {"echo", "?s"}, [](cli::Arguments args) { echo(args[1].getWord()); });
-  const cli::Command limitCmd({"pm", "lim", "vin", "?i", "?i"},
-                              [](cli::Arguments args) {
-                                setLimits(args[3].getInt(), args[4].getInt());
-                              });
-  const cli::Command ratioCmd({"ratio", "set", "?f"}, [](cli::Arguments args) {
+      "echo ?s", [](cli::Arguments args) { echo(args[1].getWord()); });
+  const cli::Command limitCmd("pm lim vin ?i ?i", [](cli::Arguments args) {
+    setLimits(args[3].getInt(), args[4].getInt());
+  });
+  const cli::Command ratioCmd("ratio set ?f", [](cli::Arguments args) {
     setRatio(args[2].getFloat());
   });
   int voltage = 0;
-  const cli::Command setVoltageCmd(
-      {"set", "voltage", "?i"}, [&voltage](cli::Arguments args) {
-        cout << "set voltage called with arg 2 (int): " << args[2].getInt()
-             << endl;
-        voltage = args[2].getInt();
-      });
-  const cli::Command parseIntCmd({"parseint", "?s"}, testParser);
+  const cli::Command setVoltageCmd("set voltage ?i", [&voltage](
+                                                         cli::Arguments args) {
+    cout << "set voltage called with arg 2 (int): " << args[2].getInt() << endl;
+    voltage = args[2].getInt();
+  });
+  const cli::Command parseIntCmd("parseint ?s", testParser);
 
   const char *const input = argv[1];
   if (helloCmd.tryRun(input)) {
