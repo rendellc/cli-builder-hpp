@@ -79,39 +79,41 @@ TEST_CASE("tests for former bugs", "[cli]") {
 };
 
 TEST_CASE("integer parser", "[cli]") {
+  using cli::Token;
   using cli::parsers::integerParser;
   int value = 1231241241; // value not expected by any tests
 
   SECTION("normal usage") {
-    REQUIRE(integerParser("0", value));
+    REQUIRE(integerParser(Token("0", 1), value));
     REQUIRE(value == 0);
 
-    REQUIRE(integerParser("1", value));
+    REQUIRE(integerParser(Token("1", 1), value));
     REQUIRE(value == 1);
-    REQUIRE(integerParser("+63", value));
+    REQUIRE(integerParser(Token("+63", 3), value));
     REQUIRE(value == 63);
 
-    REQUIRE(integerParser("-2", value));
+    REQUIRE(integerParser(Token("-2", 2), value));
     REQUIRE(value == -2);
 
-    REQUIRE(integerParser("-0", value));
+    REQUIRE(integerParser(Token("-0", 2), value));
     REQUIRE(value == 0);
 
-    REQUIRE(integerParser("-1043", value));
+    REQUIRE(integerParser(Token("-1043", 5), value));
     REQUIRE(value == -1043);
   }
 
   SECTION("invalid inputs should fail") {
-    REQUIRE_THROWS(integerParser(nullptr, value));
-    REQUIRE(!integerParser("", value));
-    REQUIRE(!integerParser(" ", value));
-    REQUIRE(!integerParser("1+2", value));
-    REQUIRE(!integerParser("text", value));
-    REQUIRE(!integerParser("10.0", value));
+    REQUIRE(!integerParser(Token(), value));
+    REQUIRE(!integerParser(Token("", 0), value));
+    REQUIRE(!integerParser(Token(" ", 1), value));
+    REQUIRE(!integerParser(Token("1+2", 3), value));
+    REQUIRE(!integerParser(Token("text", 4), value));
+    REQUIRE(!integerParser(Token("10.0", 4), value));
   }
 };
 
 TEST_CASE("decimal parser", "[cli]") {
+  using cli::Token;
   using cli::parsers::decimalParser;
   float value = 123.4560123;
   const auto isEqual = [](float a, float b) {
@@ -120,35 +122,35 @@ TEST_CASE("decimal parser", "[cli]") {
   };
 
   SECTION("normal usage") {
-    REQUIRE(decimalParser("0", value));
+    REQUIRE(decimalParser(Token("0", 1), value));
     REQUIRE(isEqual(0.0, value));
 
-    REQUIRE(decimalParser("0.0", value));
+    REQUIRE(decimalParser(Token("0.0", 3), value));
     REQUIRE(isEqual(0.0, value));
 
-    REQUIRE(decimalParser("1", value));
+    REQUIRE(decimalParser(Token("1", 1), value));
     REQUIRE(isEqual(1.0, value));
-    REQUIRE(decimalParser("+63", value));
+    REQUIRE(decimalParser(Token("+63", 3), value));
     REQUIRE(isEqual(63.0, value));
 
-    REQUIRE(decimalParser("-2", value));
+    REQUIRE(decimalParser(Token("-2", 2), value));
     REQUIRE(isEqual(-2.0, value));
 
-    REQUIRE(decimalParser("-0", value));
+    REQUIRE(decimalParser(Token("-0", 2), value));
     REQUIRE(isEqual(-0.0, value));
 
-    REQUIRE(decimalParser("-1043", value));
+    REQUIRE(decimalParser(Token("-1043", 5), value));
     REQUIRE(isEqual(-1043.0, value));
 
-    REQUIRE(decimalParser("10.0", value));
+    REQUIRE(decimalParser(Token("10.0", 4), value));
     REQUIRE(isEqual(10.0, value));
   }
 
   SECTION("invalid inputs should fail") {
-    REQUIRE_THROWS(decimalParser(nullptr, value));
-    REQUIRE(!decimalParser("", value));
-    REQUIRE(!decimalParser(" ", value));
-    REQUIRE(!decimalParser("1+2", value));
-    REQUIRE(!decimalParser("text", value));
+    REQUIRE(!decimalParser(Token(), value));
+    REQUIRE(!decimalParser(Token("", 0), value));
+    REQUIRE(!decimalParser(Token(" ", 1), value));
+    REQUIRE(!decimalParser(Token("1+2", 3), value));
+    REQUIRE(!decimalParser(Token("text", 4), value));
   }
 };

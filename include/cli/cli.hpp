@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
-#include <initializer_list>
 
 #define CLI_LOG_NOOP(format, ...)                                              \
   do {                                                                         \
@@ -152,6 +151,9 @@ public:
 };
 
 namespace str {
+bool isInt(char c) { return '0' <= c && c <= '9'; }
+int toInt(char c) { return static_cast<int>(c - '0'); }
+
 bool cmp(const char *str1, const SizeT len1, const char *str2,
          const SizeT len2) {
   CLI_ASSERT(str1 != nullptr, "str1 is nullptr");
@@ -174,39 +176,30 @@ bool cmp(const char *str1, const SizeT len1, const char *str2,
 } // namespace str
 
 namespace parsers {
-bool integerParser(const char *input, int &value) {
-  // TODO: should work on tokens. some token parsing logic is
-  // contained here
-  CLI_ASSERT(input != nullptr, "integerParser got nullptr input");
-  if (input == nullptr) {
+bool integerParser(const Token &token, int &value) {
+  if (!token.isValid()) {
     return false;
   }
-
-  const char &first = *input;
-  const bool validFirst =
-      first == '+' || first == '-' || ('0' <= first && first <= '9');
+  const char &first = *token.str();
+  const bool validFirst = first == '+' || first == '-' || str::isInt(first);
   if (!validFirst) {
     return false;
   }
 
   const bool isNegative = first == '-';
   const bool skipFirst = first == '-' || first == '+';
+  SizeT i = 0;
   if (skipFirst) {
-    input++;
+    i = 1;
   }
-
   value = 0;
-  while (*input != 0 && !std::isspace(*input) && '0' <= *input &&
-         *input <= '9') {
-    const int digit = static_cast<int>(*input - '0');
+  for (; i < token.len(); i++) {
+    const char c = *(token.str() + i);
+    if (!str::isInt(c)) {
+      return false;
+    }
+    const int digit = str::toInt(c);
     value = digit + 10 * value;
-
-    input++;
-  }
-
-  const bool hadValidStopCharacter = std::isspace(*input) || *input == 0;
-  if (!hadValidStopCharacter) {
-    return false;
   }
 
   if (isNegative) {
@@ -216,15 +209,11 @@ bool integerParser(const char *input, int &value) {
   return true;
 }
 
-// TODO: work directly on Tokens, so that we do
-// not have to check for spaces or 0 in input string
-bool decimalParser(const char *input, float &value) {
-  CLI_ASSERT(input != nullptr, "decimalParser got nullptr input");
-  if (input == nullptr) {
+bool decimalParser(const Token &token, float &value) {
+  if (!token.isValid()) {
     return false;
   }
-
-  const char &first = *input;
+  const char &first = *token.str();
   const bool validFirst =
       first == '+' || first == '-' || ('0' <= first && first <= '9');
   if (!validFirst) {
@@ -233,37 +222,46 @@ bool decimalParser(const char *input, float &value) {
 
   const bool isNegative = first == '-';
   const bool skipFirst = first == '-' || first == '+';
+  SizeT i = 0;
   if (skipFirst) {
-    input++;
+    i = 1;
   }
+
+  enum class ParserState { number, decimal, failed };
+  ParserState state = ParserState::number;
 
   int numberPart = 0;
-  while (*input != 0 && !std::isspace(*input) && '0' <= *input &&
-         *input <= '9') {
-    const int digit = static_cast<int>(*input - '0');
-    numberPart = digit + 10 * numberPart;
-
-    input++;
-  }
-  if (!(*input == '.' || *input == 0 || std::isspace(*input))) {
-    return false;
-  }
-
-  if (*input == '.') {
-    input++;
-  }
-
   int decimalPart = 0;
-  SizeT decimalDivider = 1;
-  while (*input != 0 && !std::isspace(*input) && '0' <= *input &&
-         *input <= '9') {
-    const int digit = static_cast<int>(*input - '0');
-    decimalPart = digit + 10 * decimalPart;
-    decimalDivider *= 10;
+  int decimalDivider = 1;
+  for (; i < token.len(); i++) {
+    const char c = token.str()[i];
+    if (c == '.') {
+      if (state == ParserState::number) {
+        state = ParserState::decimal;
+      } else {
+        state = ParserState::failed;
+      }
+      continue;
+    }
 
-    input++;
+    if ('0' <= c && c <= '9') {
+      const int digit = str::toInt(c);
+      if (state == ParserState::number) {
+        numberPart = digit + 10 * numberPart;
+      }
+      if (state == ParserState::decimal) {
+        decimalPart = digit + 10 * decimalPart;
+        decimalDivider *= 10;
+      }
+
+      continue;
+    }
+
+    state = ParserState::failed;
+    break;
   }
-  if (*input != 0 && !std::isspace(*input)) {
+
+  if (state == ParserState::failed) {
     return false;
   }
 
@@ -329,14 +327,14 @@ Argument tokenParser(const Token &token, const Token &inputToken) {
     break;
   case constants::SchemaType::argInteger: {
     int value;
-    if (parsers::integerParser(inputToken.str(), value)) {
+    if (parsers::integerParser(inputToken, value)) {
       return Argument::integer(value);
     }
     break;
   }
   case constants::SchemaType::argDecimal: {
     float value;
-    if (parsers::decimalParser(inputToken.str(), value)) {
+    if (parsers::decimalParser(inputToken, value)) {
       return Argument::decimal(value);
     }
     break;

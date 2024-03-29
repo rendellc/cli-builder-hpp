@@ -26,7 +26,8 @@ void testParser(cli::Arguments args) {
   const char *input = args[1].getWord();
   cout << "testing integer parser on " << input << endl;
   int value = 12837912;
-  const bool success = cli::parsers::integerParser(input, value);
+  const bool success =
+      cli::parsers::integerParser(cli::Token(input, strlen(input)), value);
   cout << "success: " << success << endl;
   cout << "value: " << value << endl;
 }
