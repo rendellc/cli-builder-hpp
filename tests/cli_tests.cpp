@@ -60,6 +60,12 @@ TEST_CASE("tests for former bugs", "[cli]") {
   const auto setVoltageCommand = Command(
       "set voltage ?i", [&](Arguments args) { wasSetByCallback = true; });
 
+  int lim1, lim2;
+  const cli::Command limitCmd("pm lim vin ?i ?i", [&](cli::Arguments args) {
+    lim1 = args[3].getInt();
+    lim2 = args[4].getInt();
+  });
+
   SECTION("prefix match but input is too long") {
     REQUIRE(!cmd.tryRun("helloo"));
     REQUIRE(!wasSetByCallback);
@@ -74,6 +80,13 @@ TEST_CASE("tests for former bugs", "[cli]") {
     REQUIRE(!setVoltageCommand.tryRun("set voltage"));
     REQUIRE(!wasSetByCallback);
   }
+
+  SECTION("pm vin lim 3 5 used to fail") {
+    REQUIRE(limitCmd.tryRun("pm lim vin 3 5"));
+    REQUIRE(lim1 == 3);
+    REQUIRE(lim2 == 5);
+  }
+
   // NOTE: what happens when input matches command but is longer?
   // Ie command is prefix of input
 };

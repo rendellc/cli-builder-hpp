@@ -23,7 +23,7 @@ void setLimits(int min, int max) {
 void setRatio(float ratio) { cout << "ratio set to " << ratio << endl; }
 
 void testParser(cli::Arguments args) {
-  const char *input = args[1].getWord();
+  const char *input = args[1].getString();
   cout << "testing integer parser on " << input << endl;
   int value = 12837912;
   const bool success =
@@ -39,7 +39,7 @@ int main(int argc, char *argv[]) {
 
   const cli::Command helloCmd("hello", [](cli::Arguments args) { hello(); });
   const cli::Command echoCmd(
-      "echo ?s", [](cli::Arguments args) { echo(args[1].getWord()); });
+      "echo ?s", [](cli::Arguments args) { echo(args[1].getString()); });
   const cli::Command limitCmd("pm lim vin ?i ?i", [](cli::Arguments args) {
     setLimits(args[3].getInt(), args[4].getInt());
   });

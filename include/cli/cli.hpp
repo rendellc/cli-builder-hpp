@@ -28,7 +28,7 @@
 #endif
 
 #ifndef CLI_CMD_TOKENS_MAX
-#define CLI_CMD_TOKENS_MAX 4
+#define CLI_CMD_TOKENS_MAX 16
 #endif
 
 #ifndef CLI_ARG_MAX_TEXT_LEN
@@ -88,62 +88,65 @@ public:
   }
 };
 
+/** @class Argument is a tagged union wrapping multiple
+ * types of parsed data.
+ */
 class Argument {
-  /// Describe the type of a parsed argument in a tagged union
-  enum class Type {
+  enum class Tag {
     none,
-    word, ///< ?s: a single word
-    // trail,   ///< ?s*: the rest of the input as a string
-    integer, ///< ?i: integer 123, +4, -1, 0
-    decimal, ///< ?f: decimal (cast to float): 0.1, 10.42, -123.456
+    string,
+    integer,
+    decimal,
   };
-  Type m_type = Type::none;
+  Tag m_tag = Tag::none;
 
-  union Result {
+  union Data {
     char text[CLI_ARG_MAX_TEXT_LEN] = {0};
     int integer;
     float decimal;
   };
-  Result m_value = {};
+  Data m_value = {};
 
 public:
-  bool isValid() const { return m_type != Type::none; }
+  Argument() = default;
+  bool isValid() const { return m_tag != Tag::none; }
 
   static Argument none() { return Argument{}; }
   static Argument integer(int value) {
     Argument a;
-    a.m_type = Type::integer;
+    a.m_tag = Tag::integer;
     a.m_value.integer = value;
     return a;
   }
   static Argument decimal(float value) {
     Argument a;
-    a.m_type = Type::decimal;
+    a.m_tag = Tag::decimal;
     a.m_value.decimal = value;
     return a;
   }
   static Argument text(const char *value, SizeT len) {
     const SizeT size = static_cast<SizeT>(strcspn(value, " "));
     Argument a;
-    a.m_type = Type::word;
+    a.m_tag = Tag::string;
     strncpy(a.m_value.text, value, size);
     return a;
   }
 
-  const char *getWord() const {
-    CLI_ASSERT(m_type == Type::word,
+  const char *getString() const {
+    CLI_ASSERT(m_tag == Tag::string,
                "trying to get non-word argument as word\n");
 
     return m_value.text;
   }
+
   int getInt() const {
-    CLI_ASSERT(m_type == Type::integer,
+    CLI_ASSERT(m_tag == Tag::integer,
                "trying to get non-int argument as integer\n");
 
     return m_value.integer;
   }
   float getFloat() const {
-    CLI_ASSERT(m_type == Type::decimal,
+    CLI_ASSERT(m_tag == Tag::decimal,
                "trying to get non-float argument as float\n");
 
     return m_value.decimal;
