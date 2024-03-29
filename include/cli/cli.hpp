@@ -1,4 +1,5 @@
-#pragma once
+#ifndef CLI_HPP_
+#define CLI_HPP_
 
 #include <array>
 #include <cctype>
@@ -27,6 +28,10 @@
   }
 #endif
 
+#ifndef CLI_CMD_COUNT_MAX
+#define CLI_CMD_COUNT_MAX 16
+#endif
+
 #ifndef CLI_CMD_TOKENS_MAX
 #define CLI_CMD_TOKENS_MAX 16
 #endif
@@ -45,13 +50,14 @@ class Argument;
 using Arguments = std::array<Argument, CLI_CMD_TOKENS_MAX>;
 using Callback = std::function<void(Arguments)>;
 class Command;
+class Token;
 
 using SizeT = CLI_SIZE_T_TYPE;
 
 namespace constants {
 constexpr const char *word = "?s";
 constexpr const char *integer = "?i";
-constexpr const char *decimal = "?d";
+constexpr const char *decimal = "?f";
 
 // TODO: merge these togheter
 enum class SchemaType { invalid, text, argWord, argInteger, argDecimal };
@@ -60,7 +66,7 @@ enum class SchemaType { invalid, text, argWord, argInteger, argDecimal };
 //
 
 namespace parsers {
-constants::SchemaType parseType(const char *str, const SizeT len);
+constants::SchemaType parseType(const Token &token);
 }
 
 /* @class Token
@@ -75,7 +81,7 @@ class Token {
 public:
   Token() = default;
   Token(const char *str, SizeT len)
-      : m_raw(str), m_len(len), m_type(parsers::parseType(str, len)) {}
+      : m_raw(str), m_len(len), m_type(parsers::parseType(*this)) {}
 
   constants::SchemaType getSchemaType() const { return m_type; }
 
@@ -86,9 +92,27 @@ public:
     return m_raw != nullptr && m_len > 0 &&
            m_type != constants::SchemaType::invalid;
   }
+
+  bool operator==(const Token &other) const {
+    if (!isValid() || !other.isValid()) {
+      return false;
+    }
+
+    if (len() != other.len()) {
+      return false;
+    }
+
+    for (SizeT i = 0; i < len(); i++) {
+      if (str()[i] != other.str()[i]) {
+        return false;
+      }
+    }
+
+    return true;
+  }
 };
 
-/** @class Argument is a tagged union wrapping multiple
+/* @class Argument is a tagged union wrapping multiple
  * types of parsed data.
  */
 class Argument {
@@ -124,11 +148,10 @@ public:
     a.m_value.decimal = value;
     return a;
   }
-  static Argument text(const char *value, SizeT len) {
-    const SizeT size = static_cast<SizeT>(strcspn(value, " "));
+  static Argument text(const Token &token) {
     Argument a;
     a.m_tag = Tag::string;
-    strncpy(a.m_value.text, value, size);
+    strncpy(a.m_value.text, token.str(), token.len());
     return a;
   }
 
@@ -156,26 +179,6 @@ public:
 namespace str {
 bool isInt(char c) { return '0' <= c && c <= '9'; }
 int toInt(char c) { return static_cast<int>(c - '0'); }
-
-bool cmp(const char *str1, const SizeT len1, const char *str2,
-         const SizeT len2) {
-  CLI_ASSERT(str1 != nullptr, "str1 is nullptr");
-  CLI_ASSERT(str2 != nullptr, "str2 is nullptr");
-
-  if (len1 != len2) {
-    return false;
-  }
-
-  const auto len = len1;
-
-  for (SizeT i = 0; i < len; i++) {
-    if (str1[i] != str2[i]) {
-      return false;
-    }
-  }
-
-  return true;
-}
 } // namespace str
 
 namespace parsers {
@@ -297,14 +300,14 @@ bool tokenSplitter(const char *input, SizeT &tokenStart, SizeT &tokenLen) {
   return true;
 }
 
-constants::SchemaType parseType(const char *str, const SizeT len) {
-  if (std::strncmp(constants::word, str, len) == 0) {
+constants::SchemaType parseType(const Token &token) {
+  if (std::strncmp(constants::word, token.str(), token.len()) == 0) {
     return constants::SchemaType::argWord;
   }
-  if (std::strncmp(constants::integer, str, len) == 0) {
+  if (std::strncmp(constants::integer, token.str(), token.len()) == 0) {
     return constants::SchemaType::argInteger;
   }
-  if (std::strncmp(constants::decimal, str, len) == 0) {
+  if (std::strncmp(constants::decimal, token.str(), token.len()) == 0) {
     return constants::SchemaType::argDecimal;
   }
 
@@ -313,20 +316,18 @@ constants::SchemaType parseType(const char *str, const SizeT len) {
 
 Argument tokenParser(const Token &token, const Token &inputToken) {
   CLI_ASSERT(token.isValid(), "token schema is invalid");
-  CLI_ASSERT(inputToken.str() != nullptr, "input is nullptr");
-  CLI_ASSERT(inputToken.len(), "inputTokenLen is 0");
+  CLI_ASSERT(inputToken.isValid(), "inputToken is invalid");
 
   switch (token.getSchemaType()) {
   case constants::SchemaType::invalid:
     return cli::Argument::none();
   case constants::SchemaType::text:
-    if (str::cmp(token.str(), token.len(), inputToken.str(),
-                 inputToken.len())) {
-      return Argument::text(inputToken.str(), inputToken.len());
+    if (token == inputToken) {
+      return Argument::text(inputToken);
     }
     break;
   case constants::SchemaType::argWord:
-    return Argument::text(inputToken.str(), inputToken.len());
+    return Argument::text(inputToken);
     break;
   case constants::SchemaType::argInteger: {
     int value;
@@ -346,15 +347,15 @@ Argument tokenParser(const Token &token, const Token &inputToken) {
 
   return cli::Argument::none();
 }
-
 } // namespace parsers
 
 class Command {
   std::array<Token, CLI_CMD_TOKENS_MAX> m_tokens;
   SizeT m_numParts = 0;
-  Callback m_callback;
+  Callback m_callback = nullptr;
 
 public:
+  Command() = default;
   Command(const char *pattern, Callback callback) : m_callback(callback) {
     SizeT i = 0;
     SizeT tokenStart = 0;
@@ -366,8 +367,6 @@ public:
     }
     m_numParts = i;
   }
-
-  ///< Try to run command, return true if successful
 
   bool parse(const char *userInput, Arguments &args) const {
     SizeT argsFound = 0;
@@ -412,4 +411,41 @@ public:
   }
 };
 
+/*
+ *
+ *
+ */
+template <SizeT cmdCountMax> class CLI {
+  std::array<Command, cmdCountMax> m_commands;
+  SizeT m_numberOfCommands = 0;
+
+public:
+  bool addCommand(Command cmd) {
+    if (m_numberOfCommands >= m_commands.size()) {
+      return false;
+    }
+
+    m_commands[m_numberOfCommands] = cmd;
+    m_numberOfCommands++;
+    return true;
+  }
+
+  bool addCommand(const char *pattern, Callback callback) {
+    return addCommand(Command(pattern, callback));
+  }
+
+  bool run(const char *input) const {
+    std::array<Argument, CLI_CMD_TOKENS_MAX> arguments; ///< Parsed arguments
+    for (int i = 0; i < m_numberOfCommands; i++) {
+      if (m_commands[i].parse(input, arguments)) {
+        m_commands[i].run(arguments);
+        return true;
+      }
+    }
+
+    return false;
+  }
+};
 } // namespace cli
+
+#endif

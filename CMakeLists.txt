@@ -6,6 +6,7 @@ project(cli_builder VERSION 0.0.1)
 include_directories(include)
 
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -O0 -ggdb")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -Os")
 
 file(GLOB EXAMPLES "examples/*.cpp")
 foreach(EXAMPLE_SRC ${EXAMPLES})

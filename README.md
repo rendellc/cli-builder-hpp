@@ -5,20 +5,14 @@ Goals:
 - Easy integration into any existing project
 - No dynamic allocations to enable running on microcontrollers
 - Prefer simplicity over features (If more features are required, then library is small and simple enough to be modified by users)
+- Safe. Invalid and malicious inputs are handled safely, and should not be visible outside the CLI library
 
 
 Todo
-- add root CLI class to hold all commands and serve as main access point
-    - maxCommands
-    - addCommand
-    - tryRun
 - clean up and document
-    - Be consistent about Cmd or Command
-    - initialize token from c_str instead of initializer_list
     - reduce size of public interface for classes
     - doxygen comments
 - add more examples
-- improve consistency between SchemaType and Type. Can they be the same?
 - tests
 - helptext generator
 - add license
@@ -28,7 +22,7 @@ Todo
 
 TODO: Write these as doc strings in the code
 
-### CLI (not implemented)
+### CLI
 
 ### Command
 

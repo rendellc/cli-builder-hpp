@@ -3,6 +3,62 @@
 #include <cli/cli.hpp>
 #include <limits>
 
+TEST_CASE("usage through CLI class", "[cli]") {
+  using cli::Arguments;
+  using cli::CLI;
+
+  CLI<4> cli;
+
+  bool wasSetByCallback = false;
+  cli.addCommand("hello", [&wasSetByCallback](Arguments args) {
+    wasSetByCallback = true;
+  });
+
+  int voltage = 0;
+  cli.addCommand("set voltage ?i",
+                 [&voltage](Arguments args) { voltage = args[2].getInt(); });
+
+  SECTION("can add commands to cli") {
+    float number;
+    REQUIRE(cli.addCommand("set number ?f", [&number](Arguments args) {
+      number = args[2].getFloat();
+    }));
+    REQUIRE(cli.run("set number 15.0"));
+    REQUIRE(number == 15.0);
+  }
+
+  SECTION("callback is called and variable is modified") {
+    REQUIRE(cli.run("hello"));
+    REQUIRE(wasSetByCallback);
+  }
+
+  SECTION("input doesn't match command") {
+    REQUIRE(!cli.run("echo"));
+    REQUIRE(!cli.run("help"));
+    REQUIRE(!cli.run("helpo"));
+    REQUIRE(!wasSetByCallback);
+  }
+
+  SECTION("empty input is handled") {
+    REQUIRE(!cli.run(""));
+    REQUIRE(!wasSetByCallback);
+  }
+
+  SECTION("almost match") {
+    REQUIRE(!cli.run("hell"));
+    REQUIRE(!wasSetByCallback);
+  }
+
+  SECTION("multipart command", "[cli]") {
+    REQUIRE(cli.run("set voltage 42"));
+    REQUIRE(voltage == 42);
+  }
+
+  SECTION("multipart command non match", "[cli]") {
+    REQUIRE(!cli.run("set voltage not_int"));
+  }
+}
+
 TEST_CASE("basic usage", "[cli]") {
   using cli::Arguments;
   using cli::Command;
