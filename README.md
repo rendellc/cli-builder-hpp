@@ -24,14 +24,14 @@ how to use it.
 wget https://raw.githubusercontent.com/rendellc/single_file_cli_hpp/main/include/cli/cli.hpp
 ```
 
-```cpp
+```{cpp}
 // defining the CLI by patterns and callbacks
-cli::CLI cli;
-cli.addCommand("hello", [](cli::Arguments args) { hello(); });
-cli.addCommand("echo ?i", [](cli::Arguments args) { 
-    // read integer argument
-    std::cout << "echo got: " << args[1].getInt() << std::endl;
+
+const auto cli = cli::CLI().withDefaultSchemas().withCommand(
+  "hello", [](cli::Arguments args) { 
+    std::cout << "welcome to the CLI" << std::endl;
 });
+
 
 // send user inputs to the CLI
 const char* input = "input";

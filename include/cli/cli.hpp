@@ -428,23 +428,23 @@ Tokens tokenParser(const char *str) {
 
 class Command {
   Callback m_callback = nullptr;
-  Tokens m_tokens;
+  Tokens m_patternTokens;
 
 public:
   Command() = default;
   Command(const char *pattern, Callback callback)
-      : m_callback(callback), m_tokens(parsers::tokenParser(pattern)) {}
+      : m_callback(callback), m_patternTokens(parsers::tokenParser(pattern)) {}
 
   bool parse(const Schemas &schemas, const Tokens &inputTokens,
              Arguments &args) const {
     args.clear();
 
-    if (inputTokens.size() != m_tokens.size()) {
+    if (inputTokens.size() != m_patternTokens.size()) {
       return false;
     }
 
-    for (SizeT i = 0; i < m_tokens.size(); i++) {
-      const auto &commandToken = m_tokens[i];
+    for (SizeT i = 0; i < m_patternTokens.size(); i++) {
+      const auto &commandToken = m_patternTokens[i];
       const auto &inputToken = inputTokens[i];
       const Argument arg =
           parsers::argumentParser(schemas, commandToken, inputToken);
@@ -493,8 +493,8 @@ public:
     }
 
     Tokens inputTokens = parsers::tokenParser(input);
-    Arguments arguments;
     for (int i = 0; i < m_commands.size(); i++) {
+      Arguments arguments;
       if (m_commands[i].parse(m_schemas, inputTokens, arguments)) {
         m_commands[i].run(arguments);
         return true;
