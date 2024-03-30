@@ -52,6 +52,10 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #define CLI_CMD_COUNT_MAX 16
 #endif
 
+#ifndef CLI_SCHEMAS_COUNT_MAX
+#define CLI_SCHEMAS_COUNT_MAX 4
+#endif
+
 #ifndef CLI_CMD_TOKENS_MAX
 #define CLI_CMD_TOKENS_MAX 16
 #endif
@@ -73,7 +77,6 @@ template <typename T, SizeT N> class FixedVector {
 
 public:
   SizeT size() const { return m_len; }
-  SizeT max_size() const { return m_array.max_size(); }
 
   void clear() { m_len = 0; }
 
@@ -98,27 +101,27 @@ class Command;
 // std::array<Command, CLI_CMD_COUNT_MAX>;
 using Commands = FixedVector<Command, CLI_CMD_COUNT_MAX>;
 class Token;
-// using Tokens = std::array<Token, CLI_CMD_TOKENS_MAX>;
 using Tokens = FixedVector<Token, CLI_CMD_TOKENS_MAX>;
+class Schema;
+using Schemas = FixedVector<Schema, CLI_SCHEMAS_COUNT_MAX>;
+using TokenParser = std::function<bool(const Token &, Argument &)>;
 
 namespace constants {
 constexpr const char *word = "?s";
 constexpr const char *integer = "?i";
 constexpr const char *decimal = "?f";
 
-enum class SchemaType { invalid, text, argWord, argInteger, argDecimal };
+// enum class Schemas { invalid, text, argWord, argInteger, argDecimal };
 
 } // namespace constants
-//
 
 namespace parsers {
-constants::SchemaType parseType(const Token &token);
 bool integerParser(const Token &token, int &value);
 bool decimalParser(const Token &token, float &value);
-constants::SchemaType parseType(const Token &token);
 bool tokenSplitter(const char *input, SizeT &tokenStart, SizeT &tokenLen);
-Argument tokenParser(const Token &token, const Token &inputToken);
 Tokens tokenParser(const char *str);
+Argument argumentParser(const Schemas &schemas, const Token &token,
+                        const Token &inputToken);
 } // namespace parsers
 
 namespace str {
@@ -133,28 +136,17 @@ int toInt(char c);
 class Token {
   const char *m_raw = nullptr;
   SizeT m_len = 0;
-  constants::SchemaType m_type = constants::SchemaType::invalid;
 
 public:
   Token() = default;
-  Token(const char *str, SizeT len)
-      : m_raw(str), m_len(len), m_type(parsers::parseType(*this)) {}
-
-  constants::SchemaType getSchemaType() const { return m_type; }
+  Token(const char *str, SizeT len) : m_raw(str), m_len(len) {}
 
   const char *str() const { return m_raw; }
   SizeT len() const { return m_len; }
 
-  bool isValid() const {
-    return m_raw != nullptr && m_len > 0 &&
-           m_type != constants::SchemaType::invalid;
-  }
+  bool isValid() const { return m_raw != nullptr && m_len > 0; }
 
   bool operator==(const Token &other) const {
-    if (!isValid() || !other.isValid()) {
-      return false;
-    }
-
     if (len() != other.len()) {
       return false;
     }
@@ -166,6 +158,27 @@ public:
     }
 
     return true;
+  }
+};
+
+class Schema {
+  Token m_pattern;
+  TokenParser m_parser = nullptr;
+
+public:
+  Schema() = default;
+  Schema(const char *pattern, TokenParser parser)
+      : m_pattern(pattern, std::strlen(pattern)), m_parser(parser) {}
+
+  bool isSchema(const Token &commandToken) const {
+    return m_pattern == commandToken;
+  }
+
+  bool parse(const Token &inputToken, Argument &arg) const {
+    if (m_parser == nullptr) {
+      return false;
+    }
+    return m_parser(inputToken, arg);
   }
 };
 
@@ -233,6 +246,31 @@ public:
   }
 };
 
+static const Schema textSchema("?s", [](const Token &input, Argument &result) {
+  result = Argument::text(input);
+  return true;
+});
+
+bool integerSchemaParser(const Token &input, Argument &result) {
+  int value;
+  if (!parsers::integerParser(input, value)) {
+    return false;
+  }
+  result = Argument::integer(value);
+  return true;
+}
+static const Schema integerSchema("?i", integerSchemaParser);
+
+static const Schema decimalSchema("?f",
+                                  [](const Token &input, Argument &result) {
+                                    float value;
+                                    if (!parsers::decimalParser(input, value)) {
+                                      return false;
+                                    }
+                                    result = Argument::decimal(value);
+                                    return true;
+                                  });
+
 namespace str {
 bool isInt(char c) { return '0' <= c && c <= '9'; }
 int toInt(char c) { return static_cast<int>(c - '0'); }
@@ -277,8 +315,7 @@ bool decimalParser(const Token &token, float &value) {
     return false;
   }
   const char &first = *token.str();
-  const bool validFirst =
-      first == '+' || first == '-' || ('0' <= first && first <= '9');
+  const bool validFirst = first == '+' || first == '-' || str::isInt(first);
   if (!validFirst) {
     return false;
   }
@@ -307,7 +344,7 @@ bool decimalParser(const Token &token, float &value) {
       continue;
     }
 
-    if ('0' <= c && c <= '9') {
+    if (str::isInt(c)) {
       const int digit = str::toInt(c);
       if (state == ParserState::number) {
         numberPart = digit + 10 * numberPart;
@@ -357,52 +394,28 @@ bool tokenSplitter(const char *input, SizeT &tokenStart, SizeT &tokenLen) {
   return true;
 }
 
-constants::SchemaType parseType(const Token &token) {
-  if (std::strncmp(constants::word, token.str(), token.len()) == 0) {
-    return constants::SchemaType::argWord;
-  }
-  if (std::strncmp(constants::integer, token.str(), token.len()) == 0) {
-    return constants::SchemaType::argInteger;
-  }
-  if (std::strncmp(constants::decimal, token.str(), token.len()) == 0) {
-    return constants::SchemaType::argDecimal;
-  }
-
-  return constants::SchemaType::text;
-}
-
-Argument tokenParser(const Token &token, const Token &inputToken) {
-  CLI_ASSERT(token.isValid(), "token schema is invalid");
+Argument argumentParser(const Schemas &schemas, const Token &commandToken,
+                        const Token &inputToken) {
+  CLI_ASSERT(commandToken.isValid(), "commandToken is invalid");
   CLI_ASSERT(inputToken.isValid(), "inputToken is invalid");
 
-  switch (token.getSchemaType()) {
-  case constants::SchemaType::invalid:
-    return cli::Argument::none();
-  case constants::SchemaType::text:
-    if (token == inputToken) {
-      return Argument::text(inputToken);
+  for (SizeT i = 0; i < schemas.size(); i++) {
+    if (!schemas[i].isSchema(commandToken)) {
+      continue;
     }
-    break;
-  case constants::SchemaType::argWord:
-    return Argument::text(inputToken);
-    break;
-  case constants::SchemaType::argInteger: {
-    int value;
-    if (parsers::integerParser(inputToken, value)) {
-      return Argument::integer(value);
+
+    Argument arg;
+    if (!schemas[i].parse(inputToken, arg)) {
+      continue;
     }
-    break;
-  }
-  case constants::SchemaType::argDecimal: {
-    float value;
-    if (parsers::decimalParser(inputToken, value)) {
-      return Argument::decimal(value);
-    }
-    break;
-  }
+    return arg;
   }
 
-  return cli::Argument::none();
+  if (inputToken == commandToken) {
+    return Argument::text(inputToken);
+  }
+
+  return Argument::none();
 }
 
 Tokens tokenParser(const char *str) {
@@ -427,9 +440,9 @@ public:
   Command(const char *pattern, Callback callback)
       : m_callback(callback), m_tokens(parsers::tokenParser(pattern)) {}
 
-  bool parse(const char *userInput, Arguments &args) const {
+  bool parse(const Schemas &schemas, const Tokens &inputTokens,
+             Arguments &args) const {
     args.clear();
-    Tokens inputTokens = parsers::tokenParser(userInput);
 
     if (inputTokens.size() != m_tokens.size()) {
       return false;
@@ -438,7 +451,8 @@ public:
     for (SizeT i = 0; i < m_tokens.size(); i++) {
       const auto &commandToken = m_tokens[i];
       const auto &inputToken = inputTokens[i];
-      const Argument arg = parsers::tokenParser(commandToken, inputToken);
+      const Argument arg =
+          parsers::argumentParser(schemas, commandToken, inputToken);
       if (!arg.isValid()) {
         return false;
       }
@@ -449,16 +463,6 @@ public:
   }
 
   void run(const Arguments &args) const { m_callback(args); }
-
-  bool tryRun(const char *input) const {
-    Arguments arguments; ///< Parsed arguments
-    if (!parse(input, arguments)) {
-      return false;
-    }
-
-    run(arguments);
-    return true;
-  }
 };
 
 /*
@@ -466,18 +470,33 @@ public:
  */
 class CLI {
   Commands m_commands;
+  Schemas m_schemas;
 
 public:
-  bool addCommand(Command cmd) { return m_commands.push_back(cmd); }
+  CLI withDefaultSchemas() {
+    return std::move(withSchema(integerSchema)
+                         .withSchema(decimalSchema)
+                         .withSchema(textSchema));
+  }
 
-  bool addCommand(const char *pattern, Callback callback) {
-    return addCommand(Command(pattern, callback));
+  CLI withSchema(Schema schema) {
+    m_schemas.push_back(schema);
+    return std::move(*this);
+  }
+  CLI withSchema(const char *pattern, TokenParser parser) {
+    return withSchema(Schema(pattern, parser));
+  }
+
+  CLI withCommand(const char *pattern, Callback callback) {
+    m_commands.push_back(Command(pattern, callback));
+    return std::move(*this);
   }
 
   bool run(const char *input) const {
+    Tokens inputTokens = parsers::tokenParser(input);
     Arguments arguments;
     for (int i = 0; i < m_commands.size(); i++) {
-      if (m_commands[i].parse(input, arguments)) {
+      if (m_commands[i].parse(m_schemas, inputTokens, arguments)) {
         m_commands[i].run(arguments);
         return true;
       }

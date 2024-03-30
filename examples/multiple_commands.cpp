@@ -37,31 +37,30 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  const cli::Command helloCmd("hello", [](cli::Arguments args) { hello(); });
-  const cli::Command echoCmd(
-      "echo ?s", [](cli::Arguments args) { echo(args[1].getString()); });
-  const cli::Command limitCmd("pm lim vin ?i ?i", [](cli::Arguments args) {
-    setLimits(args[3].getInt(), args[4].getInt());
-  });
-  const cli::Command ratioCmd("ratio set ?f", [](cli::Arguments args) {
-    setRatio(args[2].getFloat());
-  });
   int voltage = 0;
-  const cli::Command setVoltageCmd("set voltage ?i", [&voltage](
-                                                         cli::Arguments args) {
-    cout << "set voltage called with arg 2 (int): " << args[2].getInt() << endl;
-    voltage = args[2].getInt();
-  });
-  const cli::Command parseIntCmd("parseint ?s", testParser);
+  const auto cli =
+      cli::CLI()
+          .withDefaultSchemas()
+          .withCommand("pm lim vin ?i ?i",
+                       [](cli::Arguments args) {
+                         setLimits(args[3].getInt(), args[4].getInt());
+                       })
+          .withCommand("hello", [](cli::Arguments args) { hello(); })
+          .withCommand("echo ?s",
+                       [](cli::Arguments args) { echo(args[1].getString()); })
+          .withCommand(
+              "ratio set ?f",
+              [](cli::Arguments args) { setRatio(args[2].getFloat()); })
+          .withCommand("set voltage ?i",
+                       [&voltage](cli::Arguments args) {
+                         cout << "set voltage called with arg 2 (int): "
+                              << args[2].getInt() << endl;
+                         voltage = args[2].getInt();
+                       })
+          .withCommand("parseint ?s", testParser);
 
   const char *const input = argv[1];
-  if (helloCmd.tryRun(input)) {
-  } else if (echoCmd.tryRun(input)) {
-  } else if (limitCmd.tryRun(input)) {
-  } else if (ratioCmd.tryRun(input)) {
-  } else if (setVoltageCmd.tryRun(input)) {
-  } else if (parseIntCmd.tryRun(input)) {
-  } else {
+  if (!cli.run(input)) {
     std::cerr << "no commands matched the input: " << input << std::endl;
   }
 

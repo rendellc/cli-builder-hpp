@@ -7,25 +7,17 @@ TEST_CASE("usage through CLI class", "[cli]") {
   using cli::Arguments;
   using cli::CLI;
 
-  CLI cli;
-
   bool wasSetByCallback = false;
-  cli.addCommand("hello", [&wasSetByCallback](Arguments args) {
-    wasSetByCallback = true;
-  });
-
   int voltage = 0;
-  cli.addCommand("set voltage ?i",
-                 [&voltage](Arguments args) { voltage = args[2].getInt(); });
-
-  SECTION("can add commands to cli") {
-    float number;
-    REQUIRE(cli.addCommand("set number ?f", [&number](Arguments args) {
-      number = args[2].getFloat();
-    }));
-    REQUIRE(cli.run("set number 15.0"));
-    REQUIRE(number == 15.0);
-  }
+  auto cli = CLI()
+                 .withDefaultSchemas()
+                 .withCommand("hello",
+                              [&wasSetByCallback](Arguments args) {
+                                wasSetByCallback = true;
+                              })
+                 .withCommand("set voltage ?i", [&voltage](Arguments args) {
+                   voltage = args[2].getInt();
+                 });
 
   SECTION("callback is called and variable is modified") {
     REQUIRE(cli.run("hello"));
@@ -59,86 +51,43 @@ TEST_CASE("usage through CLI class", "[cli]") {
   }
 }
 
-TEST_CASE("basic usage", "[cli]") {
-  using cli::Arguments;
-  using cli::Command;
-
-  bool wasSetByCallback = false;
-  const auto cmd = Command("hello", [&wasSetByCallback](Arguments args) {
-    wasSetByCallback = true;
-  });
-
-  int voltage = 0;
-  const auto setVoltageCommand =
-      Command("set voltage ?i",
-              [&voltage](Arguments args) { voltage = args[2].getInt(); });
-
-  SECTION("callback is called and variable is modified") {
-    REQUIRE(cmd.tryRun("hello"));
-    REQUIRE(wasSetByCallback);
-  }
-
-  SECTION("input doesn't match command") {
-    REQUIRE(!cmd.tryRun("echo"));
-    REQUIRE(!cmd.tryRun("help"));
-    REQUIRE(!cmd.tryRun("helpo"));
-    REQUIRE(!wasSetByCallback);
-  }
-
-  SECTION("empty input is handled") {
-    REQUIRE(!cmd.tryRun(""));
-    REQUIRE(!wasSetByCallback);
-  }
-
-  SECTION("almost match") {
-    REQUIRE(!cmd.tryRun("hell"));
-    REQUIRE(!wasSetByCallback);
-  }
-
-  SECTION("multipart command", "[cli]") {
-    REQUIRE(setVoltageCommand.tryRun("set voltage 42"));
-    REQUIRE(voltage == 42);
-  }
-
-  SECTION("multipart command non match", "[cli]") {
-    REQUIRE(!setVoltageCommand.tryRun("set voltage not_int"));
-  }
-}
-
 TEST_CASE("tests for former bugs", "[cli]") {
   using cli::Arguments;
-  using cli::Command;
+  using cli::CLI;
 
   bool wasSetByCallback = false;
-  const auto cmd = Command("hello", [&wasSetByCallback](Arguments args) {
-    wasSetByCallback = true;
-  });
-  const auto setVoltageCommand = Command(
-      "set voltage ?i", [&](Arguments args) { wasSetByCallback = true; });
-
   int lim1, lim2;
-  const cli::Command limitCmd("pm lim vin ?i ?i", [&](cli::Arguments args) {
-    lim1 = args[3].getInt();
-    lim2 = args[4].getInt();
-  });
+
+  const auto cli =
+      CLI()
+          .withDefaultSchemas()
+          .withCommand(
+              "hello",
+              [&wasSetByCallback](Arguments args) { wasSetByCallback = true; })
+          .withCommand("set voltage ?i",
+                       [&](Arguments args) { wasSetByCallback = true; })
+          .withCommand("pm lim vin ?i ?i", [&](cli::Arguments args) {
+            lim1 = args[3].getInt();
+            lim2 = args[4].getInt();
+          });
 
   SECTION("prefix match but input is too long") {
-    REQUIRE(!cmd.tryRun("helloo"));
+    REQUIRE(!cli.run("helloo"));
     REQUIRE(!wasSetByCallback);
   }
 
   SECTION("invalid int parsing doesn't fail") {
-    REQUIRE(!setVoltageCommand.tryRun("set voltage not_int"));
+    REQUIRE(!cli.run("set voltage not_int"));
     REQUIRE(!wasSetByCallback);
   }
 
   SECTION("incomplete input shold fail") {
-    REQUIRE(!setVoltageCommand.tryRun("set voltage"));
+    REQUIRE(!cli.run("set voltage"));
     REQUIRE(!wasSetByCallback);
   }
 
   SECTION("pm vin lim 3 5 used to fail") {
-    REQUIRE(limitCmd.tryRun("pm lim vin 3 5"));
+    REQUIRE(cli.run("pm lim vin 3 5"));
     REQUIRE(lim1 == 3);
     REQUIRE(lim2 == 5);
   }
