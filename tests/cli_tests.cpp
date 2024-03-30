@@ -94,39 +94,48 @@ TEST_CASE("tests for former bugs", "[cli]") {
 
   // NOTE: what happens when input matches command but is longer?
   // Ie command is prefix of input
+  SECTION("input is too long") {
+    REQUIRE(!cli.run("pm lim vin 3 5 extra stuff"));
+    REQUIRE(!cli.run("hello hello"));
+    REQUIRE(!wasSetByCallback);
+  }
+
+  SECTION("invalid inputs should fail") {
+    REQUIRE(!cli.run("aslkadsfklas"));
+    REQUIRE(!cli.run(nullptr));
+  }
 };
 
 TEST_CASE("integer parser", "[cli]") {
-  using cli::Token;
-  using cli::parsers::integerParser;
   int value = 1231241241; // value not expected by any tests
+  const auto cli = cli::CLI().withDefaultSchemas().withCommand(
+      "test ?i", [&](cli::Arguments args) { value = args[1].getInt(); });
 
   SECTION("normal usage") {
-    REQUIRE(integerParser(Token("0", 1), value));
+    REQUIRE(cli.run("test 0"));
     REQUIRE(value == 0);
 
-    REQUIRE(integerParser(Token("1", 1), value));
+    REQUIRE(cli.run("test 1"));
     REQUIRE(value == 1);
-    REQUIRE(integerParser(Token("+63", 3), value));
+    REQUIRE(cli.run("test +63"));
     REQUIRE(value == 63);
 
-    REQUIRE(integerParser(Token("-2", 2), value));
+    REQUIRE(cli.run("test -2"));
     REQUIRE(value == -2);
 
-    REQUIRE(integerParser(Token("-0", 2), value));
+    REQUIRE(cli.run("test -0"));
     REQUIRE(value == 0);
 
-    REQUIRE(integerParser(Token("-1043", 5), value));
+    REQUIRE(cli.run("test -1043"));
     REQUIRE(value == -1043);
   }
 
   SECTION("invalid inputs should fail") {
-    REQUIRE(!integerParser(Token(), value));
-    REQUIRE(!integerParser(Token("", 0), value));
-    REQUIRE(!integerParser(Token(" ", 1), value));
-    REQUIRE(!integerParser(Token("1+2", 3), value));
-    REQUIRE(!integerParser(Token("text", 4), value));
-    REQUIRE(!integerParser(Token("10.0", 4), value));
+    REQUIRE(!cli.run("test "));
+    REQUIRE(!cli.run("test      not_int 123"));
+    REQUIRE(!cli.run("test 1+2"));
+    REQUIRE(!cli.run("test text"));
+    REQUIRE(!cli.run("test 10.0"));
   }
 };
 

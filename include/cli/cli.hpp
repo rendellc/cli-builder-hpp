@@ -106,15 +106,6 @@ class Schema;
 using Schemas = FixedVector<Schema, CLI_SCHEMAS_COUNT_MAX>;
 using TokenParser = std::function<bool(const Token &, Argument &)>;
 
-namespace constants {
-constexpr const char *word = "?s";
-constexpr const char *integer = "?i";
-constexpr const char *decimal = "?f";
-
-// enum class Schemas { invalid, text, argWord, argInteger, argDecimal };
-
-} // namespace constants
-
 namespace parsers {
 bool integerParser(const Token &token, int &value);
 bool decimalParser(const Token &token, float &value);
@@ -203,21 +194,25 @@ class Argument {
 
 public:
   Argument() = default;
+
   bool isValid() const { return m_tag != Tag::none; }
 
   static Argument none() { return Argument{}; }
+
   static Argument integer(int value) {
     Argument a;
     a.m_tag = Tag::integer;
     a.m_value.integer = value;
     return a;
   }
+
   static Argument decimal(float value) {
     Argument a;
     a.m_tag = Tag::decimal;
     a.m_value.decimal = value;
     return a;
   }
+
   static Argument text(const Token &token) {
     Argument a;
     a.m_tag = Tag::string;
@@ -251,15 +246,15 @@ static const Schema textSchema("?s", [](const Token &input, Argument &result) {
   return true;
 });
 
-bool integerSchemaParser(const Token &input, Argument &result) {
-  int value;
-  if (!parsers::integerParser(input, value)) {
-    return false;
-  }
-  result = Argument::integer(value);
-  return true;
-}
-static const Schema integerSchema("?i", integerSchemaParser);
+static const Schema integerSchema("?i",
+                                  [](const Token &input, Argument &result) {
+                                    int value;
+                                    if (!parsers::integerParser(input, value)) {
+                                      return false;
+                                    }
+                                    result = Argument::integer(value);
+                                    return true;
+                                  });
 
 static const Schema decimalSchema("?f",
                                   [](const Token &input, Argument &result) {
@@ -493,6 +488,10 @@ public:
   }
 
   bool run(const char *input) const {
+    if (input == nullptr) {
+      return false;
+    }
+
     Tokens inputTokens = parsers::tokenParser(input);
     Arguments arguments;
     for (int i = 0; i < m_commands.size(); i++) {
