@@ -66,20 +66,46 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 namespace cli {
 
+using SizeT = CLI_SIZE_T_TYPE;
+template <typename T, SizeT N> class FixedVector {
+  std::array<T, N> m_array;
+  SizeT m_len = 0;
+
+public:
+  SizeT size() const { return m_len; }
+  SizeT max_size() const { return m_array.max_size(); }
+
+  void clear() { m_len = 0; }
+
+  bool push_back(T value) {
+    if (m_len >= N) {
+      return false;
+    }
+    m_array[m_len] = value;
+    m_len++;
+    return true;
+  }
+
+  const T &operator[](SizeT i) const { return m_array[i]; }
+  T &operator[](SizeT i) { return m_array[i]; }
+};
+
 class Argument;
-using Arguments = std::array<Argument, CLI_CMD_TOKENS_MAX>;
+// using Arguments = std::array<Argument, CLI_CMD_TOKENS_MAX>;
+using Arguments = FixedVector<Argument, CLI_CMD_TOKENS_MAX>;
 using Callback = std::function<void(Arguments)>;
 class Command;
+// std::array<Command, CLI_CMD_COUNT_MAX>;
+using Commands = FixedVector<Command, CLI_CMD_COUNT_MAX>;
 class Token;
-
-using SizeT = CLI_SIZE_T_TYPE;
+// using Tokens = std::array<Token, CLI_CMD_TOKENS_MAX>;
+using Tokens = FixedVector<Token, CLI_CMD_TOKENS_MAX>;
 
 namespace constants {
 constexpr const char *word = "?s";
 constexpr const char *integer = "?i";
 constexpr const char *decimal = "?f";
 
-// TODO: merge these togheter
 enum class SchemaType { invalid, text, argWord, argInteger, argDecimal };
 
 } // namespace constants
@@ -87,7 +113,18 @@ enum class SchemaType { invalid, text, argWord, argInteger, argDecimal };
 
 namespace parsers {
 constants::SchemaType parseType(const Token &token);
-}
+bool integerParser(const Token &token, int &value);
+bool decimalParser(const Token &token, float &value);
+constants::SchemaType parseType(const Token &token);
+bool tokenSplitter(const char *input, SizeT &tokenStart, SizeT &tokenLen);
+Argument tokenParser(const Token &token, const Token &inputToken);
+Tokens tokenParser(const char *str);
+} // namespace parsers
+
+namespace str {
+bool isInt(char c);
+int toInt(char c);
+} // namespace str
 
 /* @class Token
  * Represent a token (aka a substring of either the command definition
@@ -367,52 +404,45 @@ Argument tokenParser(const Token &token, const Token &inputToken) {
 
   return cli::Argument::none();
 }
+
+Tokens tokenParser(const char *str) {
+  Tokens tokens;
+  SizeT tokenStart = 0;
+  SizeT tokenLen = 0;
+  while (parsers::tokenSplitter(str, tokenStart, tokenLen)) {
+    tokens.push_back(Token(str + tokenStart, tokenLen));
+    tokenStart = tokenStart + tokenLen;
+  }
+
+  return tokens;
+}
 } // namespace parsers
 
 class Command {
-  std::array<Token, CLI_CMD_TOKENS_MAX> m_tokens;
-  SizeT m_numParts = 0;
   Callback m_callback = nullptr;
+  Tokens m_tokens;
 
 public:
   Command() = default;
-  Command(const char *pattern, Callback callback) : m_callback(callback) {
-    SizeT i = 0;
-    SizeT tokenStart = 0;
-    SizeT tokenLen = 0;
-    while (parsers::tokenSplitter(pattern, tokenStart, tokenLen)) {
-      m_tokens[i] = Token(pattern + tokenStart, tokenLen);
-      tokenStart = tokenStart + tokenLen;
-      i += 1;
-    }
-    m_numParts = i;
-  }
+  Command(const char *pattern, Callback callback)
+      : m_callback(callback), m_tokens(parsers::tokenParser(pattern)) {}
 
   bool parse(const char *userInput, Arguments &args) const {
-    SizeT argsFound = 0;
-    SizeT inputTokenStart = 0;
-    SizeT inputTokenLen = 0;
+    args.clear();
+    Tokens inputTokens = parsers::tokenParser(userInput);
 
-    for (const auto &commandToken : m_tokens) {
-      const bool beyondFinalPart = !commandToken.isValid();
-      if (beyondFinalPart) {
-        break;
-      }
+    if (inputTokens.size() != m_tokens.size()) {
+      return false;
+    }
 
-      if (!parsers::tokenSplitter(userInput, inputTokenStart, inputTokenLen)) {
-        // more tokens than present in input
-        return false;
-      }
-
-      const Token inputToken =
-          Token(userInput + inputTokenStart, inputTokenLen);
-      inputTokenStart += inputTokenLen;
+    for (SizeT i = 0; i < m_tokens.size(); i++) {
+      const auto &commandToken = m_tokens[i];
+      const auto &inputToken = inputTokens[i];
       const Argument arg = parsers::tokenParser(commandToken, inputToken);
-      args[argsFound] = arg;
-      argsFound++;
       if (!arg.isValid()) {
         return false;
       }
+      args.push_back(arg);
     }
 
     return true;
@@ -421,7 +451,7 @@ public:
   void run(const Arguments &args) const { m_callback(args); }
 
   bool tryRun(const char *input) const {
-    std::array<Argument, CLI_CMD_TOKENS_MAX> arguments; ///< Parsed arguments
+    Arguments arguments; ///< Parsed arguments
     if (!parse(input, arguments)) {
       return false;
     }
@@ -433,30 +463,20 @@ public:
 
 /*
  *
- *
  */
 class CLI {
-  std::array<Command, CLI_CMD_COUNT_MAX> m_commands;
-  SizeT m_numberOfCommands = 0;
+  Commands m_commands;
 
 public:
-  bool addCommand(Command cmd) {
-    if (m_numberOfCommands >= m_commands.size()) {
-      return false;
-    }
-
-    m_commands[m_numberOfCommands] = cmd;
-    m_numberOfCommands++;
-    return true;
-  }
+  bool addCommand(Command cmd) { return m_commands.push_back(cmd); }
 
   bool addCommand(const char *pattern, Callback callback) {
     return addCommand(Command(pattern, callback));
   }
 
   bool run(const char *input) const {
-    std::array<Argument, CLI_CMD_TOKENS_MAX> arguments; ///< Parsed arguments
-    for (int i = 0; i < m_numberOfCommands; i++) {
+    Arguments arguments;
+    for (int i = 0; i < m_commands.size(); i++) {
       if (m_commands[i].parse(input, arguments)) {
         m_commands[i].run(arguments);
         return true;
