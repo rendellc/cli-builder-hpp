@@ -16,7 +16,7 @@ TEST_CASE("usage through CLI class", "[cli]") {
                                 wasSetByCallback = true;
                               })
                  .withCommand("set voltage ?i", [&voltage](Arguments args) {
-                   voltage = args[2].getInt();
+                   voltage = args[2].get<int>();
                  });
 
   SECTION("callback is called and variable is modified") {
@@ -67,8 +67,8 @@ TEST_CASE("tests for former bugs", "[cli]") {
           .withCommand("set voltage ?i",
                        [&](Arguments args) { wasSetByCallback = true; })
           .withCommand("pm lim vin ?i ?i", [&](cli::Arguments args) {
-            lim1 = args[3].getInt();
-            lim2 = args[4].getInt();
+            lim1 = args[3].get<int>();
+            lim2 = args[4].get<int>();
           });
 
   SECTION("prefix match but input is too long") {
@@ -106,10 +106,10 @@ TEST_CASE("tests for former bugs", "[cli]") {
   }
 };
 
-TEST_CASE("integer parser", "[cli]") {
+TEST_CASE("integer parser") {
   int value = 1231241241; // value not expected by any tests
   const auto cli = cli::CLI().withDefaultSchemas().withCommand(
-      "test ?i", [&](cli::Arguments args) { value = args[1].getInt(); });
+      "test ?i", [&](cli::Arguments args) { value = args[1].get<int>(); });
 
   SECTION("normal usage") {
     REQUIRE(cli.run("test 0"));
@@ -179,5 +179,50 @@ TEST_CASE("decimal parser", "[cli]") {
     REQUIRE(!decimalParser(Token(" ", 1), value));
     REQUIRE(!decimalParser(Token("1+2", 3), value));
     REQUIRE(!decimalParser(Token("text", 4), value));
+  }
+};
+
+TEST_CASE("string parser", "[cli]") {
+  using cli::Arguments;
+  using cli::CLI;
+
+  const auto isEqual = [](const char *a, const char *b) {
+    if (a == nullptr || b == nullptr) {
+      return false;
+    }
+    if (a == b) {
+      return true;
+    }
+    int i = 0;
+    while (a[i] == b[i] && a[i] != 0 && b[i] != 0) {
+      i++;
+    }
+
+    if (a[i] != b[i]) {
+      return false;
+    }
+
+    return true;
+  };
+
+  SECTION("compare with known string", "[string]") {
+    const char *testString = "string test_compare";
+    bool wasEqual = true;
+    const auto cli = CLI().withDefaultSchemas().withCommand(
+        "string ?s", [&](Arguments args) {
+          wasEqual = isEqual(args[1].getString(), "test_compare");
+        });
+    REQUIRE(cli.run("string hello"));
+    REQUIRE(!wasEqual);
+    REQUIRE(cli.run("string testtest"));
+    REQUIRE(!wasEqual);
+    REQUIRE(cli.run("string test_erapmoc"));
+    REQUIRE(!wasEqual);
+    REQUIRE(cli.run(testString));
+    REQUIRE(wasEqual);
+    REQUIRE(cli.run("string test_compare_"));
+    REQUIRE(!wasEqual);
+    REQUIRE(cli.run("string test_compare"));
+    REQUIRE(wasEqual);
   }
 };

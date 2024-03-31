@@ -115,6 +115,14 @@ Argument argumentParser(const Schemas &schemas, const Token &token,
                         const Token &inputToken);
 } // namespace parsers
 
+using Tag = uint8_t;
+namespace constants {
+constexpr Tag tagInvalid = 0;
+constexpr Tag tagInt = tagInvalid + 1;
+constexpr Tag tagFloat = tagInt + 1;
+constexpr Tag tagString = tagFloat + 1;
+} // namespace constants
+
 namespace str {
 bool isInt(char c);
 int toInt(char c);
@@ -177,68 +185,89 @@ public:
  * types of parsed data.
  */
 class Argument {
-  enum class Tag {
-    none,
-    string,
-    integer,
-    decimal,
-  };
-  Tag m_tag = Tag::none;
+public:
+  Tag m_tag = constants::tagInvalid;
 
   union Data {
     char text[CLI_ARG_MAX_TEXT_LEN] = {0};
     int integer;
     float decimal;
+    uint64_t raw64;
   };
   Data m_value = {};
 
 public:
   Argument() = default;
 
-  bool isValid() const { return m_tag != Tag::none; }
+  bool isValid() const { return m_tag != constants::tagInvalid; }
 
-  static Argument none() { return Argument{}; }
+  template <typename T> static Argument create(Tag tag, T value) {
+    T *valuePtr = &value;
+    uint64_t *rawPtr = (uint64_t *)(valuePtr);
 
-  static Argument integer(int value) {
     Argument a;
-    a.m_tag = Tag::integer;
-    a.m_value.integer = value;
+    a.m_tag = tag;
+    a.m_value.raw64 = *rawPtr;
     return a;
   }
 
-  static Argument decimal(float value) {
-    Argument a;
-    a.m_tag = Tag::decimal;
-    a.m_value.decimal = value;
-    return a;
+  template <typename T> T get() const {
+    T *ptr = (T *)(&m_value.raw64);
+    return *ptr;
   }
+
+  template <typename T> T get(Tag tag) const {
+    if (m_tag != tag) {
+      CLI_WARN("get on non matching tag");
+      return T();
+    }
+    const uint64_t *rawPtr = &m_value.raw64;
+    T *ptr = (T *)(rawPtr);
+    return *ptr;
+  }
+
+  // static Argument none() { return Argument{}; }
+
+  // static Argument integer(int value) {
+  //   return Argument::with(constants::tagInt, value);
+  // }
+
+  // static Argument decimal(float value) {
+  //   return Argument::with(constants::tagFloat, value);
+  // }
 
   static Argument text(const Token &token) {
     Argument a;
-    a.m_tag = Tag::string;
+    a.m_tag = constants::tagString;
     strncpy(a.m_value.text, token.str(), token.len());
     return a;
   }
 
   const char *getString() const {
-    CLI_ASSERT(m_tag == Tag::string,
-               "trying to get non-word argument as word\n");
+    if (m_tag != constants::tagString) {
+      CLI_WARN("trying to get non-word argument as word\n");
+      return "";
+    }
 
     return m_value.text;
   }
 
-  int getInt() const {
-    CLI_ASSERT(m_tag == Tag::integer,
-               "trying to get non-int argument as integer\n");
+  // int getInt() const {
+  //   if (m_tag != Tag::integer) {
+  //     CLI_WARN("trying to get non-int argument as integer\n");
+  //     return 0;
+  //   }
 
-    return m_value.integer;
-  }
-  float getFloat() const {
-    CLI_ASSERT(m_tag == Tag::decimal,
-               "trying to get non-float argument as float\n");
+  //   return m_value.integer;
+  // }
+  // float getFloat() const {
+  //   if (m_tag != Tag::decimal) {
+  //     CLI_WARN("trying to get non-float argument as float\n");
+  //     return 0.0;
+  //   }
 
-    return m_value.decimal;
-  }
+  //   return m_value.decimal;
+  // }
 };
 
 static const Schema textSchema("?s", [](const Token &input, Argument &result) {
@@ -246,25 +275,25 @@ static const Schema textSchema("?s", [](const Token &input, Argument &result) {
   return true;
 });
 
-static const Schema integerSchema("?i",
-                                  [](const Token &input, Argument &result) {
-                                    int value;
-                                    if (!parsers::integerParser(input, value)) {
-                                      return false;
-                                    }
-                                    result = Argument::integer(value);
-                                    return true;
-                                  });
+static const Schema integerSchema("?i", [](const Token &input,
+                                           Argument &result) {
+  int value;
+  if (!parsers::integerParser(input, value)) {
+    return false;
+  }
+  result = Argument::create(constants::tagInt, value);
+  return true;
+});
 
-static const Schema decimalSchema("?f",
-                                  [](const Token &input, Argument &result) {
-                                    float value;
-                                    if (!parsers::decimalParser(input, value)) {
-                                      return false;
-                                    }
-                                    result = Argument::decimal(value);
-                                    return true;
-                                  });
+static const Schema decimalSchema("?f", [](const Token &input,
+                                           Argument &result) {
+  float value;
+  if (!parsers::decimalParser(input, value)) {
+    return false;
+  }
+  result = Argument::create(constants::tagFloat, value);
+  return true;
+});
 
 namespace str {
 bool isInt(char c) { return '0' <= c && c <= '9'; }
@@ -410,7 +439,7 @@ Argument argumentParser(const Schemas &schemas, const Token &commandToken,
     return Argument::text(inputToken);
   }
 
-  return Argument::none();
+  return Argument();
 }
 
 Tokens tokenParser(const char *str) {
@@ -458,6 +487,14 @@ public:
   }
 
   void run(const Arguments &args) const { m_callback(args); }
+
+  void getHelp(std::function<void(const char *, int)> writer) const {
+    for (SizeT i = 0; i < m_patternTokens.size(); i++) {
+      const auto &t = m_patternTokens[i];
+      writer(t.str(), t.len());
+      writer(" ", 1);
+    }
+  }
 };
 
 /*
@@ -502,6 +539,13 @@ public:
     }
 
     return false;
+  }
+
+  void getHelp(std::function<void(const char *, int)> writer) const {
+    for (int i = 0; i < m_commands.size(); i++) {
+      m_commands[i].getHelp(writer);
+      writer("\n", 1);
+    }
   }
 };
 } // namespace cli

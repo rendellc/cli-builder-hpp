@@ -10,10 +10,7 @@ Goals:
 
 Todo
 - clean up and document
-    - reduce size of public interface for classes
 - add more examples
-- flag to allow including with no implementations (only definitions)
-- helptext generator
 - no throwing. Always return errors, except with asserts
 
 ## Usage
@@ -24,14 +21,13 @@ how to use it.
 wget https://raw.githubusercontent.com/rendellc/single_file_cli_hpp/main/include/cli/cli.hpp
 ```
 
-```{cpp}
+```cpp
 // defining the CLI by patterns and callbacks
 
 const auto cli = cli::CLI().withDefaultSchemas().withCommand(
   "hello", [](cli::Arguments args) { 
     std::cout << "welcome to the CLI" << std::endl;
 });
-
 
 // send user inputs to the CLI
 const char* input = "input";

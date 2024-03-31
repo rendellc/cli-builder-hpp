@@ -43,21 +43,22 @@ int main(int argc, char *argv[]) {
           .withDefaultSchemas()
           .withCommand("pm lim vin ?i ?i",
                        [](cli::Arguments args) {
-                         setLimits(args[3].getInt(), args[4].getInt());
+                         setLimits(args[3].get<int>(), args[4].get<int>());
                        })
           .withCommand("hello", [](cli::Arguments args) { hello(); })
           .withCommand("echo ?s",
                        [](cli::Arguments args) { echo(args[1].getString()); })
           .withCommand(
               "ratio set ?f",
-              [](cli::Arguments args) { setRatio(args[2].getFloat()); })
+              [](cli::Arguments args) { setRatio(args[2].get<float>()); })
           .withCommand("set voltage ?i",
                        [&voltage](cli::Arguments args) {
                          cout << "set voltage called with arg 2 (int): "
-                              << args[2].getInt() << endl;
-                         voltage = args[2].getInt();
+                              << args[2].get<int>() << endl;
+                         voltage = args[2].get<int>();
                        })
           .withCommand("parseint ?s", testParser);
+  cli.getHelp([](const char *text, int len) { printf("%.*s", len, text); });
 
   const char *const input = argv[1];
   if (!cli.run(input)) {
