@@ -4,7 +4,7 @@ Goals:
 - Simple API to define commands
 - Easy integration into any existing project
 - No dynamic allocations to enable running on microcontrollers
-- Prefer simplicity over features (If more features are required, then library is small and simple enough to be modified by users)
+- Prefer interface simplicity over features (If more features are required, then library is small and simple enough to be modified by users)
 - Safe. Invalid and malicious inputs are handled safely, and should not be visible outside the CLI library
 
 

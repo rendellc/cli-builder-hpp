@@ -1,23 +1,3 @@
-/*
-Copyright © 2024 Rendell Cale
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the “Software”), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
-the Software, and to permit persons to whom the Software is furnished to do so,
-subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
-FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
-IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-*/
 #ifndef CLI_HPP_
 #define CLI_HPP_
 
@@ -107,8 +87,8 @@ using Schemas = FixedVector<Schema, CLI_SCHEMAS_COUNT_MAX>;
 using TokenParser = std::function<bool(const Token &, Argument &)>;
 
 namespace parsers {
-bool integerParser(const Token &token, int &value);
-bool decimalParser(const Token &token, float &value);
+bool parseInteger(const Token &token, int &value);
+bool parseFloat(const Token &token, float &value);
 bool tokenSplitter(const char *input, SizeT &tokenStart, SizeT &tokenLen);
 Tokens tokenParser(const char *str);
 Argument argumentParser(const Schemas &schemas, const Token &token,
@@ -121,6 +101,11 @@ constexpr Tag tagInvalid = 0;
 constexpr Tag tagInt = tagInvalid + 1;
 constexpr Tag tagFloat = tagInt + 1;
 constexpr Tag tagString = tagFloat + 1;
+
+// Tag identifiers to use with custom schemas
+constexpr Tag tagUser1 = 100;
+constexpr Tag tagUser2 = tagUser1 + 1;
+constexpr Tag tagUser3 = tagUser2 + 1;
 } // namespace constants
 
 namespace str {
@@ -222,19 +207,9 @@ public:
       return T();
     }
     const uint64_t *rawPtr = &m_value.raw64;
-    T *ptr = (T *)(rawPtr);
+    const T *ptr = (T *)(rawPtr);
     return *ptr;
   }
-
-  // static Argument none() { return Argument{}; }
-
-  // static Argument integer(int value) {
-  //   return Argument::with(constants::tagInt, value);
-  // }
-
-  // static Argument decimal(float value) {
-  //   return Argument::with(constants::tagFloat, value);
-  // }
 
   static Argument text(const Token &token) {
     Argument a;
@@ -270,25 +245,24 @@ public:
   // }
 };
 
-static const Schema textSchema("?s", [](const Token &input, Argument &result) {
+static const Schema schemaText("?s", [](const Token &input, Argument &result) {
   result = Argument::text(input);
   return true;
 });
 
-static const Schema integerSchema("?i", [](const Token &input,
+static const Schema schemaInteger("?i", [](const Token &input,
                                            Argument &result) {
   int value;
-  if (!parsers::integerParser(input, value)) {
+  if (!parsers::parseInteger(input, value)) {
     return false;
   }
   result = Argument::create(constants::tagInt, value);
   return true;
 });
 
-static const Schema decimalSchema("?f", [](const Token &input,
-                                           Argument &result) {
+static const Schema schemaFloat("?f", [](const Token &input, Argument &result) {
   float value;
-  if (!parsers::decimalParser(input, value)) {
+  if (!parsers::parseFloat(input, value)) {
     return false;
   }
   result = Argument::create(constants::tagFloat, value);
@@ -301,7 +275,7 @@ int toInt(char c) { return static_cast<int>(c - '0'); }
 } // namespace str
 
 namespace parsers {
-bool integerParser(const Token &token, int &value) {
+bool parseInteger(const Token &token, int &value) {
   if (!token.isValid()) {
     return false;
   }
@@ -334,7 +308,7 @@ bool integerParser(const Token &token, int &value) {
   return true;
 }
 
-bool decimalParser(const Token &token, float &value) {
+bool parseFloat(const Token &token, float &value) {
   if (!token.isValid()) {
     return false;
   }
@@ -506,9 +480,9 @@ class CLI {
 
 public:
   CLI withDefaultSchemas() {
-    return std::move(withSchema(integerSchema)
-                         .withSchema(decimalSchema)
-                         .withSchema(textSchema));
+    return std::move(withSchema(schemaInteger)
+                         .withSchema(schemaFloat)
+                         .withSchema(schemaText));
   }
 
   CLI withSchema(Schema schema) {

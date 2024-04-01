@@ -140,45 +140,50 @@ TEST_CASE("integer parser") {
 };
 
 TEST_CASE("decimal parser", "[cli]") {
-  using cli::Token;
-  using cli::parsers::decimalParser;
-  float value = 123.4560123;
+  float value = 123.4560123; // value not expected by any tests
+  const auto cli = cli::CLI().withDefaultSchemas().withCommand(
+      "test ?f", [&](cli::Arguments args) { value = args[1].get<float>(); });
   const auto isEqual = [](float a, float b) {
     // return std::abs(a - b) <= 0.00001f;
     return std::abs(a - b) <= std::numeric_limits<float>::epsilon();
   };
 
   SECTION("normal usage") {
-    REQUIRE(decimalParser(Token("0", 1), value));
+    REQUIRE(cli.run("test 0"));
     REQUIRE(isEqual(0.0, value));
 
-    REQUIRE(decimalParser(Token("0.0", 3), value));
+    REQUIRE(cli.run("test 0.0"));
     REQUIRE(isEqual(0.0, value));
 
-    REQUIRE(decimalParser(Token("1", 1), value));
+    REQUIRE(cli.run("test 1"));
     REQUIRE(isEqual(1.0, value));
-    REQUIRE(decimalParser(Token("+63", 3), value));
+    REQUIRE(cli.run("test +63"));
     REQUIRE(isEqual(63.0, value));
 
-    REQUIRE(decimalParser(Token("-2", 2), value));
+    REQUIRE(cli.run("test -2"));
     REQUIRE(isEqual(-2.0, value));
 
-    REQUIRE(decimalParser(Token("-0", 2), value));
+    REQUIRE(cli.run("test -0"));
     REQUIRE(isEqual(-0.0, value));
 
-    REQUIRE(decimalParser(Token("-1043", 5), value));
+    REQUIRE(cli.run("test -1043"));
     REQUIRE(isEqual(-1043.0, value));
 
-    REQUIRE(decimalParser(Token("10.0", 4), value));
+    REQUIRE(cli.run("test 10.0"));
     REQUIRE(isEqual(10.0, value));
+
+    REQUIRE(cli.run("test 3.141516"));
+    REQUIRE(isEqual(3.141516, value));
   }
 
   SECTION("invalid inputs should fail") {
-    REQUIRE(!decimalParser(Token(), value));
-    REQUIRE(!decimalParser(Token("", 0), value));
-    REQUIRE(!decimalParser(Token(" ", 1), value));
-    REQUIRE(!decimalParser(Token("1+2", 3), value));
-    REQUIRE(!decimalParser(Token("text", 4), value));
+    REQUIRE(!cli.run(nullptr));
+    REQUIRE(!cli.run("test nan"));     // not supporting nan
+    REQUIRE(!cli.run("test inf"));     // not supporting inf
+    REQUIRE(!cli.run("test 1.0 2.0")); // too many input tokens
+    REQUIRE(!cli.run("test "));        // missing number
+    REQUIRE(!cli.run("test 1+2"));     // invalid
+    REQUIRE(!cli.run("test text"));    // invalid
   }
 };
 
