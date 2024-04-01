@@ -1,11 +1,5 @@
 #include <iostream>
 
-// #define CLI_DEBUG(format, ...)                                                 \
-//   printf("debug: ");                                                           \
-//   printf(format, ##__VA_ARGS__)
-// #define CLI_WARN(format, ...)                                                  \
-//   printf("warn: ");                                                            \
-//   printf(format, ##__VA_ARGS__)
 #define CLI_MAX_CMD_PARTS 8
 #include <cli/cli.hpp>
 

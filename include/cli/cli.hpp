@@ -186,6 +186,8 @@ public:
 
   bool isValid() const { return m_tag != constants::tagInvalid; }
 
+  Tag getTag() const { return m_tag; }
+
   template <typename T> static Argument create(Tag tag, T value) {
     T *valuePtr = &value;
     uint64_t *rawPtr = (uint64_t *)(valuePtr);
